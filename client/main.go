@@ -1,85 +1,80 @@
-package main
+package client
 
 import (
-	"bufio"
-	"context"
-	"log"
+	"fmt"
 	"os"
-	"sync"
-	"time"
+	"strings"
 
-	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/op/go-logging"
+	"github.com/spf13/viper"
 )
 
-func failOnError(err error, msg string) {
+var log = logging.MustGetLogger("log")
+
+func InitConfig() (*viper.Viper, error) {
+	v := viper.New()
+
+	v.AutomaticEnv()
+	v.SetEnvPrefix("cli")
+
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	v.BindEnv("server", "address")
+	v.BindEnv("log", "level")
+
+	v.SetConfigFile("./config.yaml")
+	if err := v.ReadInConfig(); err != nil {
+		fmt.Printf("Configuration could not be read from config file. Using env variables instead")
+	}
+
+	return v, nil
+}
+
+func InitLogger(logLevel string) error {
+	baseBackend := logging.NewLogBackend(os.Stdout, "", 0)
+	format := logging.MustStringFormatter(
+		`%{time:2006-01-02 15:04:05} %{level:.5s}     %{message}`,
+	)
+	backendFormatter := logging.NewBackendFormatter(baseBackend, format)
+
+	backendLeveled := logging.AddModuleLevel(backendFormatter)
+	logLevelCode, err := logging.LogLevel(logLevel)
 	if err != nil {
-		log.Fatalf("%s: %s", msg, err)
+		return err
 	}
+	backendLeveled.SetLevel(logLevelCode, "")
+
+	logging.SetBackend(backendLeveled)
+	return nil
 }
 
-func sendToExchange(exchangeName, routingKey, data string, ch *amqp.Channel) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err := ch.PublishWithContext(ctx,
-		exchangeName, // exchange
-		routingKey,   // routing key
-		false,        // mandatory
-		false,        // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(data),
-		})
-	failOnError(err, "Failed to publish a message")
-
-	log.Printf("Sent [%s]", data)
-}
-
-func readAndSendData(filePath string, routingKey string, exchangeName string, ch *amqp.Channel, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	file, err := os.Open(filePath)
-	failOnError(err, "Failed to open file: "+filePath)
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		sendToExchange(exchangeName, routingKey, scanner.Text(), ch)
-	}
-	if err := scanner.Err(); err != nil {
-		failOnError(err, "Error reading file: "+filePath)
-	}
-
-	// log.Printf("Data from %s sent to RabbitMQ\n", filePath)
+func PrintConfig(v *viper.Viper) {
+	log.Infof("action: config | result: success | server_address: %s | log_level: %s",
+		v.GetString("server.address"),
+		v.GetString("log.level"),
+	)
 }
 
 func main() {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
-	defer conn.Close()
+	v, err := InitConfig()
+	if err != nil {
+		log.Criticalf("%s", err)
+	}
 
-	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
-	defer ch.Close()
+	if err := InitLogger(v.GetString("log.level")); err != nil {
+		log.Criticalf("%s", err)
+	}
 
-	err = ch.ExchangeDeclare(
-		"steam_analyzer", // name
-		"direct",         // type
-		true,             // durable
-		false,            // auto-deleted
-		false,            // internal
-		false,            // no-wait
-		nil,              // arguments
-	)
-	failOnError(err, "Failed to declare an exchange")
+	PrintConfig(v)
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	clientConfig := ClientConfig{
+		ServerAddress:   v.GetString("server.address"),
+		BatchMaxAmount:  v.GetInt("batch.maxAmount"),
+		BatchSleep:      v.GetDuration("batch.sleep"),
+		GamesFilePath:   "/app/datasets/games.csv",
+		ReviewsFilePath: "/app/datasets/reviews.csv",
+	}
 
-	go readAndSendData("/app/datasets/games.csv", "games", "steam_analyzer", ch, &wg)
-	go readAndSendData("/app/datasets/reviews.csv", "reviews", "steam_analyzer", ch, &wg)
-
-	wg.Wait()
-
-	log.Println("All data sent successfully!")
+	client := NewClient(clientConfig)
+	client.StartClient()
 }
