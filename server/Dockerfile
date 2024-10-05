@@ -6,7 +6,8 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY . .
+COPY ./server/ ./server
+COPY ./common/ ./common
 
 RUN go build -o server.bin ./server
 

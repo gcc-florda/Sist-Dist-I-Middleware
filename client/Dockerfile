@@ -6,7 +6,8 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY . .
+COPY ./client/ ./client
+COPY ./common/ ./common
 
 RUN go build -o client.bin ./client
 
