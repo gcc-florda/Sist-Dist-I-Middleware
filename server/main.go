@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"middleware/server/common"
 	"os"
 	"strings"
 
@@ -65,7 +66,7 @@ func main() {
 
 	PrintConfig(v)
 
-	server := NewServer(v.GetString("server.ip"), v.GetInt("server.port"))
+	server := common.NewServer(v.GetString("server.ip"), v.GetInt("server.port"))
 	if err := server.Start(); err != nil {
 		log.Criticalf("Error starting server: %s", err)
 	}

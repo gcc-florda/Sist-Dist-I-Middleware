@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"middleware/client/common"
 	"os"
 	"strings"
 
@@ -67,7 +68,7 @@ func main() {
 
 	PrintConfig(v)
 
-	clientConfig := ClientConfig{
+	clientConfig := common.ClientConfig{
 		ServerAddress:   v.GetString("server.address"),
 		BatchMaxAmount:  v.GetInt("batch.maxAmount"),
 		BatchSleep:      v.GetDuration("batch.sleep"),
@@ -75,6 +76,6 @@ func main() {
 		ReviewsFilePath: "/app/datasets/reviews.csv",
 	}
 
-	client := NewClient(clientConfig)
+	client := common.NewClient(clientConfig)
 	client.StartClient()
 }

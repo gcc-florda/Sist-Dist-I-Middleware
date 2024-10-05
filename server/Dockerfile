@@ -6,13 +6,14 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY ./server .
+COPY . .
 
-# RUN CGO_ENABLED=0 GOOS=linux go build -o server .
-RUN CGO_ENABLED=0 GOOS=linux go build -mod vendor -o bin/server middleware/server
+RUN go build -o server.bin ./server
 
-FROM alpine:latest
+FROM busybox:latest
+
 WORKDIR /app
-COPY --from=builder /app/server .
 
-CMD ["./server"]
+COPY --from=builder /app/server.bin .
+
+ENTRYPOINT ["./server.bin"]

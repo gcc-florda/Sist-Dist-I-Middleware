@@ -6,12 +6,14 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY ./client ./client
-COPY ./utils ./utils
+COPY . .
 
-WORKDIR /app/client
+RUN go build -o client.bin ./client
 
-RUN go build -o client .
-RUN CGO_ENABLED=0 GOOS=linux go build -mod vendor -o bin/client middleware/client
+FROM busybox:latest
 
-CMD ["./client"]
+WORKDIR /app
+
+COPY --from=builder /app/client.bin .
+
+ENTRYPOINT ["./client.bin"]

@@ -20,6 +20,7 @@ services:
       - server
     volumes:
       - ./datasets:/app/datasets
+      - ./client/config.yaml:/app/config.yaml
 
   server:
     build:
@@ -30,6 +31,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - ./server/config.yaml:/app/config.yaml
 
 volumes:
   rabbitmq_data:

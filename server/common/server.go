@@ -1,4 +1,4 @@
-package main
+package common
 
 import (
 	"encoding/binary"
@@ -12,7 +12,7 @@ import (
 	"github.com/op/go-logging"
 )
 
-var serverLog = logging.MustGetLogger("log")
+var log = logging.MustGetLogger("log")
 
 type Server struct {
 	address  string
@@ -23,7 +23,7 @@ type Server struct {
 
 func FailOnError(err error, msg string) {
 	if err != nil {
-		serverLog.Panicf("%s: %s", msg, err)
+		log.Panicf("%s: %s", msg, err)
 	}
 }
 
@@ -45,14 +45,14 @@ func (s *Server) Start() error {
 	FailOnError(err, "Failed to start server")
 	defer s.listener.Close()
 
-	serverLog.Infof("Server listening on %s", s.address)
+	log.Infof("Server listening on %s", s.address)
 
 	go s.HandleShutdown()
 
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			serverLog.Errorf("Failed to accept connection: %s", err)
+			log.Errorf("Failed to accept connection: %s", err)
 			continue
 		}
 
@@ -63,18 +63,18 @@ func (s *Server) Start() error {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	serverLog.Infof("Client connected: %s", conn.RemoteAddr().String())
+	log.Infof("Client connected: %s", conn.RemoteAddr().String())
 
 	for {
 		message := s.ReceiveMessage(conn)
 
-		serverLog.Infof("Received message: %s", string(message))
+		log.Infof("Received message: %s", string(message))
 	}
 }
 
 func (s *Server) HandleShutdown() {
 	<-s.term
-	serverLog.Criticalf("Received SIGTERM")
+	log.Criticalf("Received SIGTERM")
 	if s.listener != nil {
 		s.listener.Close()
 	}
