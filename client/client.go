@@ -1,4 +1,4 @@
-package client
+package main
 
 import (
 	"bufio"
@@ -13,7 +13,11 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/op/go-logging"
 )
+
+var clientLog = logging.MustGetLogger("log")
 
 type ClientConfig struct {
 	ServerAddress   string
@@ -31,7 +35,7 @@ type Client struct {
 
 func FailOnError(err error, msg string) {
 	if err != nil {
-		log.Panicf("%s: %s", msg, err)
+		clientLog.Panicf("%s: %s", msg, err)
 	}
 }
 
@@ -48,7 +52,7 @@ func NewClient(config ClientConfig) *Client {
 
 func (c *Client) HandleShutdown() {
 	<-c.term
-	log.Criticalf("Received SIGTERM, shutting down")
+	clientLog.Criticalf("Received SIGTERM")
 	if c.conn != nil {
 		c.conn.Close()
 	}
@@ -64,7 +68,7 @@ func (c *Client) StartClient() {
 	go c.HandleShutdown()
 
 	c.CreateSocket()
-	log.Infof("Connected to server at %s", c.config.ServerAddress)
+	clientLog.Infof("Connected to server at %s", c.config.ServerAddress)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -75,7 +79,7 @@ func (c *Client) StartClient() {
 
 	wg.Wait()
 
-	log.Infof("All data sent to server. Exiting")
+	clientLog.Infof("All data sent to server. Exiting")
 }
 
 func (c *Client) OpenFile(path string) (*os.File, error) {

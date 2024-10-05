@@ -1,17 +1,17 @@
 FROM golang:1.23 AS builder
 
-WORKDIR /build
+WORKDIR /app
 
-COPY /go.mod /go.sum ./
+COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY /*.go ./
+COPY ./client ./client
+COPY ./utils ./utils
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o bin/client .
+WORKDIR /app/client
 
-FROM alpine:latest
-WORKDIR /app
-COPY --from=builder /build/bin/client /client
+RUN go build -o client .
+RUN CGO_ENABLED=0 GOOS=linux go build -mod vendor -o bin/client middleware/client
 
-ENTRYPOINT ["/client"]
+CMD ["./client"]

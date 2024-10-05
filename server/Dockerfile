@@ -2,16 +2,17 @@ FROM golang:1.23 AS builder
 
 WORKDIR /app
 
-COPY /go.mod /go.sum ./
+COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY /*.go ./
+COPY ./server .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o middleware .
+# RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+RUN CGO_ENABLED=0 GOOS=linux go build -mod vendor -o bin/server middleware/server
 
 FROM alpine:latest
 WORKDIR /app
-COPY --from=builder /app/middleware .
+COPY --from=builder /app/server .
 
-CMD ["./middleware"]
+CMD ["./server"]
