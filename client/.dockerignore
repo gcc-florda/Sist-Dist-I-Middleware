@@ -1,0 +1,7 @@
+**/server/*
+**/Dockerfile
+**/.dockerignore
+**/docker-compose.yaml
+**/.gitignore
+**/README.md
+**/datasets/*

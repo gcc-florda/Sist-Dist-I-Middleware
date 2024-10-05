@@ -1,17 +1,20 @@
 FROM golang:1.23 AS builder
 
-WORKDIR /build
+WORKDIR /app
 
-COPY /go.mod /go.sum ./
+COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY /*.go ./
+COPY ./client/ ./client
+COPY ./common/ ./common
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o bin/client .
+RUN go build -o client.bin ./client
 
-FROM alpine:latest
+FROM busybox:latest
+
 WORKDIR /app
-COPY --from=builder /build/bin/client /client
 
-ENTRYPOINT ["/client"]
+COPY --from=builder /app/client.bin .
+
+ENTRYPOINT ["./client.bin"]

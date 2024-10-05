@@ -14,21 +14,25 @@ services:
 
   client:
     build:
-      context: ./client
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./client/Dockerfile
+    depends_on:
+      - server
+    volumes:
+      - ./datasets:/app/datasets
+      - ./client/config.yaml:/app/config.yaml
+
+  server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    ports:
+      - "12345:12345"
     depends_on:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ./datasets:/app/datasets
-
-  middleware:
-    build:
-      context: ./middleware
-      dockerfile: Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - ./server/config.yaml:/app/config.yaml
 
 volumes:
   rabbitmq_data:

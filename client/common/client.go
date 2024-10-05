@@ -1,4 +1,4 @@
-package client
+package common
 
 import (
 	"bufio"
@@ -6,14 +6,18 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"middleware/utils"
+	"middleware/common/utils"
 	"net"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("log")
 
 type ClientConfig struct {
 	ServerAddress   string
@@ -48,7 +52,7 @@ func NewClient(config ClientConfig) *Client {
 
 func (c *Client) HandleShutdown() {
 	<-c.term
-	log.Criticalf("Received SIGTERM, shutting down")
+	log.Criticalf("Received SIGTERM")
 	if c.conn != nil {
 		c.conn.Close()
 	}

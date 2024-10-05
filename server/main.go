@@ -1,104 +1,73 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"middleware/server/common"
+	"os"
+	"strings"
 
-	"github.com/streadway/amqp"
+	"github.com/op/go-logging"
+	"github.com/spf13/viper"
 )
 
-func failOnError(err error, msg string) {
-	if err != nil {
-		log.Panicf("%s: %s", msg, err)
+var log = logging.MustGetLogger("log")
+
+func InitConfig() (*viper.Viper, error) {
+	v := viper.New()
+
+	v.AutomaticEnv()
+	v.SetEnvPrefix("srv")
+
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	v.SetConfigFile("./config.yaml")
+	if err := v.ReadInConfig(); err != nil {
+		fmt.Printf("Configuration could not be read from config file. Using env variables instead")
 	}
+
+	return v, nil
 }
 
-func sendToWebServer(data string, endpoint string) {
-	// resp, err := http.Post(endpoint, "text/plain", bytes.NewBuffer([]byte(data)))
-	// if err != nil {
-	// 	log.Fatalf("Failed to send data to webserver: %s", err)
-	// }
-	// defer resp.Body.Close()
-	// fmt.Printf("Data sent to %s\n", endpoint)
-}
-
-func consumeFromQueue(queueName string, ch *amqp.Channel, endpoint string) {
-	msgs, err := ch.Consume(
-		queueName, // queue
-		"",        // consumer
-		true,      // auto-ack
-		false,     // exclusive
-		false,     // no-local
-		false,     // no-wait
-		nil,       // args
+func InitLogger(logLevel string) error {
+	baseBackend := logging.NewLogBackend(os.Stdout, "", 0)
+	format := logging.MustStringFormatter(
+		`%{time:2006-01-02 15:04:05} %{level:.5s}     %{message}`,
 	)
-	failOnError(err, "Failed to register a consumer")
+	backendFormatter := logging.NewBackendFormatter(baseBackend, format)
 
-	for d := range msgs {
-		log.Printf("Received from %s [%s]", queueName, d.Body)
-		sendToWebServer(string(d.Body), endpoint)
+	backendLeveled := logging.AddModuleLevel(backendFormatter)
+	logLevelCode, err := logging.LogLevel(logLevel)
+	if err != nil {
+		return err
 	}
+	backendLeveled.SetLevel(logLevelCode, "")
+
+	logging.SetBackend(backendLeveled)
+	return nil
+}
+
+func PrintConfig(v *viper.Viper) {
+	log.Infof("action: config | result: success | server_ip: %s | server_port: %d | log_level: %s",
+		v.GetString("server.ip"),
+		v.GetInt("server.port"),
+		v.GetString("log.level"),
+	)
 }
 
 func main() {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
-	defer conn.Close()
+	v, err := InitConfig()
+	if err != nil {
+		log.Criticalf("%s", err)
+	}
 
-	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
-	defer ch.Close()
+	if err := InitLogger(v.GetString("log.level")); err != nil {
+		log.Criticalf("%s", err)
+	}
 
-	err = ch.ExchangeDeclare(
-		"steam_analyzer", // name
-		"direct",         // type
-		true,             // durable
-		false,            // auto-deleted
-		false,            // internal
-		false,            // no-wait
-		nil,              // arguments
-	)
-	failOnError(err, "Failed to declare an exchange")
+	PrintConfig(v)
 
-	_, err = ch.QueueDeclare(
-		"games_queue", // name
-		true,          // durable
-		false,         // delete when unused
-		false,         // exclusive
-		false,         // no-wait
-		nil,           // arguments
-	)
-	failOnError(err, "Failed to declare games queue")
-
-	_, err = ch.QueueDeclare(
-		"reviews_queue", // name
-		true,            // durable
-		false,           // delete when unused
-		false,           // exclusive
-		false,           // no-wait
-		nil,             // arguments
-	)
-	failOnError(err, "Failed to declare reviews queue")
-
-	err = ch.QueueBind(
-		"games_queue",    // queue name
-		"games",          // routing key
-		"steam_analyzer", // exchange
-		false,            // no-wait
-		nil,
-	)
-	failOnError(err, "Failed to bind games queue to exchange")
-
-	err = ch.QueueBind(
-		"reviews_queue",  // queue name
-		"reviews",        // routing key
-		"steam_analyzer", // exchange
-		false,            // no-wait
-		nil,
-	)
-	failOnError(err, "Failed to bind reviews queue to exchange")
-
-	go consumeFromQueue("games_queue", ch, "http://localhost:8080/games")
-	go consumeFromQueue("reviews_queue", ch, "http://localhost:8080/reviews")
-
-	select {}
+	server := common.NewServer(v.GetString("server.ip"), v.GetInt("server.port"))
+	if err := server.Start(); err != nil {
+		log.Criticalf("Error starting server: %s", err)
+	}
 }
