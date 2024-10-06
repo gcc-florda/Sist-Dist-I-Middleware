@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"middleware/common"
 	"middleware/common/utils"
 	"net"
 	"os"
@@ -14,65 +15,75 @@ import (
 var log = logging.MustGetLogger("log")
 
 type Server struct {
-	address  string
-	port     int
-	listener net.Listener
-	term     chan os.Signal
+	Address  string
+	Port     int
+	Listener net.Listener
+	Term     chan os.Signal
+	Clients  []*Client
 }
 
 func NewServer(ip string, port int) *Server {
 	server := &Server{
-		address: fmt.Sprintf("%s:%d", ip, port),
-		port:    port,
-		term:    make(chan os.Signal, 1),
+		Address: fmt.Sprintf("%s:%d", ip, port),
+		Port:    port,
+		Term:    make(chan os.Signal, 1),
+		Clients: []*Client{},
 	}
 
-	signal.Notify(server.term, syscall.SIGTERM)
+	signal.Notify(server.Term, syscall.SIGTERM)
 
 	return server
 }
 
 func (s *Server) Start() error {
 	var err error
-	s.listener, err = net.Listen("tcp", s.address)
+	s.Listener, err = net.Listen("tcp", s.Address)
 	utils.FailOnError(err, "Failed to start server")
-	defer s.listener.Close()
+	defer s.Listener.Close()
 
-	log.Infof("Server listening on %s", s.address)
+	log.Infof("Server listening on %s", s.Address)
 
 	go s.HandleShutdown()
 
 	for {
-		conn, err := s.listener.Accept()
+		conn, err := s.Listener.Accept()
+		client := NewClient(conn)
+		s.Clients = append(s.Clients, client)
 		if err != nil {
 			log.Errorf("Failed to accept connection: %s", err)
 			continue
 		}
 
-		go s.HandleConnection(conn)
+		go s.HandleConnection(client)
 	}
 }
 
-func (s *Server) HandleConnection(conn net.Conn) {
-	defer conn.Close()
+func (s *Server) HandleConnection(client *Client) {
+	defer client.Close()
 
-	log.Infof("Client connected: %s", conn.RemoteAddr().String())
+	log.Infof("Client connected: %s", client.Id)
 
 	for {
-		message := utils.Receive(conn)
+		message := client.Recv()
 
 		log.Infof("Received message: %s", message)
 
-		if message == utils.END {
+		if message == common.END {
 			break
 		}
 	}
 }
 
 func (s *Server) HandleShutdown() {
-	<-s.term
+	<-s.Term
 	log.Criticalf("Received SIGTERM")
-	if s.listener != nil {
-		s.listener.Close()
+
+	if s.Listener != nil {
+		s.Listener.Close()
+	}
+
+	for _, client := range s.Clients {
+		client.Close()
+		log.Infof("Closed connection for client: %s", client.Id)
 	}
 }

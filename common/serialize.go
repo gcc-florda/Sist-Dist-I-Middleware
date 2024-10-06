@@ -29,17 +29,17 @@ func (s *Serializer) WriteString(str string) *Serializer {
 }
 
 func (s *Serializer) WriteInt32(n int32) *Serializer {
-	binary.Write(&s.buf, binary.LittleEndian, n)
+	binary.Write(&s.buf, binary.BigEndian, n)
 	return s
 }
 
 func (s *Serializer) WriteUint32(n uint32) *Serializer {
-	binary.Write(&s.buf, binary.LittleEndian, n)
+	binary.Write(&s.buf, binary.BigEndian, n)
 	return s
 }
 
 func (s *Serializer) WriteUint8(n uint8) *Serializer {
-	binary.Write(&s.buf, binary.LittleEndian, n)
+	binary.Write(&s.buf, binary.BigEndian, n)
 	return s
 }
 
@@ -85,7 +85,7 @@ func (d *Deserializer) ReadString() (string, error) {
 
 func (d *Deserializer) ReadUint32() (uint32, error) {
 	var n uint32
-	if err := binary.Read(d.buf, binary.LittleEndian, &n); err != nil {
+	if err := binary.Read(d.buf, binary.BigEndian, &n); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -93,7 +93,7 @@ func (d *Deserializer) ReadUint32() (uint32, error) {
 
 func (d *Deserializer) ReadInt32() (int32, error) {
 	var n int32
-	if err := binary.Read(d.buf, binary.LittleEndian, &n); err != nil {
+	if err := binary.Read(d.buf, binary.BigEndian, &n); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -101,7 +101,7 @@ func (d *Deserializer) ReadInt32() (int32, error) {
 
 func (d *Deserializer) ReadUint8() (uint8, error) {
 	var n uint8
-	if err := binary.Read(d.buf, binary.LittleEndian, &n); err != nil {
+	if err := binary.Read(d.buf, binary.BigEndian, &n); err != nil {
 		return 0, err
 	}
 	return n, nil

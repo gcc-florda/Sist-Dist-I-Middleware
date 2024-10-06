@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"middleware/common"
 	"middleware/common/utils"
 	"net"
 	"os"
@@ -73,7 +74,7 @@ func (c *Client) StartClient() {
 
 	log.Infof("All data sent to server. Exiting")
 
-	utils.Send("END\n", c.conn)
+	common.Send(common.END, c.conn)
 }
 
 func (c *Client) OpenFile(path string) (*os.File, error) {
@@ -100,6 +101,16 @@ func (c *Client) SendData(path string, wg *sync.WaitGroup) {
 
 func (c *Client) SendBatches(reader *bufio.Reader) error {
 	lastBatch := utils.NewBatch()
+
+	// Ignore header
+	_, err := reader.ReadString('\n')
+
+	if err == io.EOF {
+		log.Criticalf("The file is empty")
+		return nil
+	}
+
+	utils.FailOnError(err, "Failed to read header from file")
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -134,5 +145,5 @@ func (c *Client) SendBatch(batch utils.Batch) {
 
 	message := batch.Serialize()
 
-	utils.Send(message, c.conn)
+	common.Send(message, c.conn)
 }
