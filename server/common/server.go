@@ -68,7 +68,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	for {
 		message := s.ReceiveMessage(conn)
 
-		log.Infof("Received message: %s", string(message))
+		log.Infof("Received message: %s", message)
 	}
 }
 
@@ -80,14 +80,17 @@ func (s *Server) HandleShutdown() {
 	}
 }
 
-func (s *Server) ReceiveMessage(conn net.Conn) []byte {
-	var length uint32
-	err := binary.Read(conn, binary.BigEndian, &length)
+func (s *Server) ReceiveMessage(conn net.Conn) string {
+
+	lengthBuffer := make([]byte, 4)
+	_, err := io.ReadFull(conn, lengthBuffer)
 	FailOnError(err, "Failed to read message length")
 
-	message := make([]byte, length)
+	messageLength := binary.BigEndian.Uint32(lengthBuffer)
+
+	message := make([]byte, messageLength)
 	_, err = io.ReadFull(conn, message)
 	FailOnError(err, "Failed to read message")
 
-	return message
+	return string(message)
 }
