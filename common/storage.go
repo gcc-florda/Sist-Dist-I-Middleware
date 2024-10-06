@@ -27,7 +27,7 @@ func (m *ClosedFileError) Error() string {
 	return fmt.Sprintf("The file %s was already closed. This can be due to manual Close() call or due to a SYSCALL received", m.filepath)
 }
 
-func NewTemporaryStorage(path string, cache bool) (*TemporaryStorage, error) {
+func NewTemporaryStorage(path string) (*TemporaryStorage, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

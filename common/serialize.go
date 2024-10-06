@@ -106,3 +106,11 @@ func (d *Deserializer) ReadUint8() (uint8, error) {
 	}
 	return n, nil
 }
+
+func (d *Deserializer) ReadBool() (bool, error) {
+	var b bool
+	if err := binary.Read(d.buf, binary.LittleEndian, &b); err != nil {
+		return false, err
+	}
+	return b, nil
+}
