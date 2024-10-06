@@ -1,6 +1,7 @@
 package business
 
 import (
+	"middleware/common"
 	"reflect"
 	"strconv"
 	"strings"
@@ -58,9 +59,34 @@ type Review struct {
 }
 
 type SOCounter struct {
-	Windows bool
-	Linux   bool
-	Mac     bool
+	Windows uint32
+	Linux   uint32
+	Mac     uint32
+}
+
+type PlayedTime struct {
+	AveragePlaytimeForever float64
+	Name                   string
+}
+
+func (p *PlayedTime) Serialize() []byte {
+	se := common.NewSerializer()
+	return se.WriteFloat64(p.AveragePlaytimeForever).WriteString(p.Name).ToBytes()
+}
+
+func PlayedTimeDeserialize(d *common.Deserializer) (*PlayedTime, error) {
+	pt, err := d.ReadFloat64()
+	if err != nil {
+		return nil, err
+	}
+	n, err := d.ReadString()
+	if err != nil {
+		return nil, err
+	}
+	return &PlayedTime{
+		AveragePlaytimeForever: pt,
+		Name:                   n,
+	}, nil
 }
 
 func MapCSVToStruct(row []string, result interface{}) error {
