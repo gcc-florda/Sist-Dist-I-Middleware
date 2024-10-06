@@ -1,6 +1,7 @@
 package main
 
 import (
+	"middleware/client/common"
 	"middleware/common/utils"
 
 	"github.com/op/go-logging"
@@ -9,7 +10,7 @@ import (
 var log = logging.MustGetLogger("log")
 
 func main() {
-	v, err := utils.InitConfig("./client/config.yaml")
+	v, err := utils.InitConfig("./config.yaml")
 	if err != nil {
 		log.Criticalf("%s", err)
 	}
@@ -20,14 +21,14 @@ func main() {
 
 	utils.PrintConfig(v)
 
-	// clientConfig := common.ClientConfig{
-	// 	ServerAddress:   v.GetString("server.address"),
-	// 	BatchMaxAmount:  v.GetInt("batch.maxAmount"),
-	// 	BatchSleep:      v.GetDuration("batch.sleep"),
-	// 	GamesFilePath:   "/app/datasets/games.csv",
-	// 	ReviewsFilePath: "/app/datasets/reviews.csv",
-	// }
+	clientConfig := common.ClientConfig{
+		ServerAddress:   v.GetString("server.address"),
+		BatchMaxAmount:  v.GetInt("batch.maxAmount"),
+		BatchSleep:      v.GetDuration("batch.sleep"),
+		GamesFilePath:   "/app/datasets/games.csv",
+		ReviewsFilePath: "/app/datasets/reviews.csv",
+	}
 
-	// client := common.NewClient(clientConfig)
-	// client.StartClient()
+	client := common.NewClient(clientConfig)
+	client.StartClient()
 }
