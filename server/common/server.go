@@ -1,9 +1,8 @@
 package common
 
 import (
-	"encoding/binary"
 	"fmt"
-	"io"
+	"middleware/common/utils"
 	"net"
 	"os"
 	"os/signal"
@@ -21,12 +20,6 @@ type Server struct {
 	term     chan os.Signal
 }
 
-func FailOnError(err error, msg string) {
-	if err != nil {
-		log.Panicf("%s: %s", msg, err)
-	}
-}
-
 func NewServer(ip string, port int) *Server {
 	server := &Server{
 		address: fmt.Sprintf("%s:%d", ip, port),
@@ -42,7 +35,7 @@ func NewServer(ip string, port int) *Server {
 func (s *Server) Start() error {
 	var err error
 	s.listener, err = net.Listen("tcp", s.address)
-	FailOnError(err, "Failed to start server")
+	utils.FailOnError(err, "Failed to start server")
 	defer s.listener.Close()
 
 	log.Infof("Server listening on %s", s.address)
@@ -56,19 +49,23 @@ func (s *Server) Start() error {
 			continue
 		}
 
-		go s.handleConnection(conn)
+		go s.HandleConnection(conn)
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) {
+func (s *Server) HandleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	log.Infof("Client connected: %s", conn.RemoteAddr().String())
 
 	for {
-		message := s.ReceiveMessage(conn)
+		message := utils.Receive(conn)
 
 		log.Infof("Received message: %s", message)
+
+		if message == "END\n" {
+			break
+		}
 	}
 }
 
@@ -78,19 +75,4 @@ func (s *Server) HandleShutdown() {
 	if s.listener != nil {
 		s.listener.Close()
 	}
-}
-
-func (s *Server) ReceiveMessage(conn net.Conn) string {
-
-	lengthBuffer := make([]byte, 4)
-	_, err := io.ReadFull(conn, lengthBuffer)
-	FailOnError(err, "Failed to read message length")
-
-	messageLength := binary.BigEndian.Uint32(lengthBuffer)
-
-	message := make([]byte, messageLength)
-	_, err = io.ReadFull(conn, message)
-	FailOnError(err, "Failed to read message")
-
-	return string(message)
 }

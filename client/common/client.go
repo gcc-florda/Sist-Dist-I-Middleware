@@ -2,8 +2,6 @@ package common
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"middleware/common/utils"
@@ -33,12 +31,6 @@ type Client struct {
 	term   chan os.Signal
 }
 
-func FailOnError(err error, msg string) {
-	if err != nil {
-		log.Panicf("%s: %s", msg, err)
-	}
-}
-
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
@@ -60,7 +52,7 @@ func (c *Client) HandleShutdown() {
 
 func (c *Client) CreateSocket() {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
-	FailOnError(err, "Failed to connect to server")
+	utils.FailOnError(err, "Failed to connect to server")
 	c.conn = conn
 }
 
@@ -80,6 +72,8 @@ func (c *Client) StartClient() {
 	wg.Wait()
 
 	log.Infof("All data sent to server. Exiting")
+
+	utils.Send("END\n", c.conn)
 }
 
 func (c *Client) OpenFile(path string) (*os.File, error) {
@@ -94,14 +88,14 @@ func (c *Client) SendData(path string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	file, err := c.OpenFile(path)
-	FailOnError(err, fmt.Sprintf("Failed to open file %s", path))
+	utils.FailOnError(err, fmt.Sprintf("Failed to open file %s", path))
 
 	defer file.Close()
 
 	reader := bufio.NewReader(file)
 
 	err = c.SendBatches(reader)
-	FailOnError(err, fmt.Sprintf("Failed to send data from file %s", path))
+	utils.FailOnError(err, fmt.Sprintf("Failed to send data from file %s", path))
 }
 
 func (c *Client) SendBatches(reader *bufio.Reader) error {
@@ -140,26 +134,5 @@ func (c *Client) SendBatch(batch utils.Batch) {
 
 	message := batch.Serialize()
 
-	c.Send(message)
-}
-
-func (c *Client) Send(message string) {
-	messageBytes := []byte(message)
-
-	buffer := new(bytes.Buffer)
-
-	err := binary.Write(buffer, binary.BigEndian, uint32(len(messageBytes)))
-	FailOnError(err, "Failed to write message length to buffer")
-
-	err = binary.Write(buffer, binary.BigEndian, messageBytes)
-	FailOnError(err, "Failed to write message to buffer")
-
-	messageLength := buffer.Len()
-	bytesSent := 0
-
-	for bytesSent < messageLength {
-		n, err := c.conn.Write(buffer.Bytes())
-		FailOnError(err, "Failed to send bytes to server")
-		bytesSent += n
-	}
+	utils.Send(message, c.conn)
 }
