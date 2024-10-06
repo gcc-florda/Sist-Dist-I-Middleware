@@ -12,47 +12,18 @@ func Q1Map(r *Game) *SOCounter {
 	}
 }
 
-type Q1State struct {
-	Windows uint32
-	Linux   uint32
-	Mac     uint32
-}
-
-func q1StateFromBytes(data []byte) (*Q1State, error) {
+func q1StateFromBytes(data []byte) (*SOCounter, error) {
 	if len(data) == 0 {
-		return &Q1State{}, nil
+		return &SOCounter{}, nil
 	}
 
 	d := common.NewDeserializer(data)
 
-	windows, err := d.ReadUint32()
-	if err != nil {
-		return nil, err
-	}
-
-	linux, err := d.ReadUint32()
-	if err != nil {
-		return nil, err
-	}
-	mac, err := d.ReadUint32()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Q1State{
-		Windows: windows,
-		Linux:   linux,
-		Mac:     mac,
-	}, nil
-}
-
-func (s *Q1State) Serialize() []byte {
-	se := common.NewSerializer()
-	return se.WriteUint32(s.Windows).WriteUint32(s.Linux).WriteUint32(s.Mac).ToBytes()
+	return SOCounterDeserialize(&d)
 }
 
 type Q1 struct {
-	state   *Q1State
+	state   *SOCounter
 	storage *common.TemporaryStorage
 }
 
@@ -91,6 +62,14 @@ func (q *Q1) Count(r *SOCounter) error {
 		return err
 	}
 	return nil
+}
+
+func (q *Q1) ToStage3() *SOCounter {
+	return q.state
+}
+
+func (q *Q1) ToResult() *SOCounter {
+	return q.state
 }
 
 func boolToCounter(b bool) uint32 {

@@ -53,6 +53,13 @@ func (s *Serializer) WriteBytes(b []byte) *Serializer {
 	return s
 }
 
+func (s *Serializer) WriteBool(b bool) *Serializer {
+	if b {
+		return s.WriteUint8(1)
+	}
+	return s.WriteUint8(0)
+}
+
 func (s *Serializer) ToBytes() []byte {
 	return s.buf.Bytes()
 }
@@ -121,11 +128,11 @@ func (d *Deserializer) ReadUint8() (uint8, error) {
 }
 
 func (d *Deserializer) ReadBool() (bool, error) {
-	var b bool
-	if err := binary.Read(d.buf, binary.BigEndian, &b); err != nil {
+	b, err := d.ReadUint8()
+	if err != nil {
 		return false, err
 	}
-	return b, nil
+	return b > 0, err
 }
 
 func ReadArray[T any](d *Deserializer, f func(*Deserializer) (T, error)) ([]T, error) {

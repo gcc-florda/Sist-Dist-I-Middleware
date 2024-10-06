@@ -101,3 +101,11 @@ func (q *Q2) Insert(games []*PlayedTime) error {
 
 	return nil
 }
+
+func (q *Q2) ToStage3() []*PlayedTime {
+	return q.state.Top
+}
+
+func (q *Q2) ToResult() []*PlayedTime {
+	return q.state.Top
+}
