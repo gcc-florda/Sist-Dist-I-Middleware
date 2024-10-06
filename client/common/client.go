@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -93,13 +94,21 @@ func (c *Client) SendData(path string, wg *sync.WaitGroup) {
 
 	defer file.Close()
 
+	var pathType string
+
+	if strings.Contains(path, "games") {
+		pathType = "1"
+	} else if strings.Contains(path, "reviews") {
+		pathType = "2"
+	}
+
 	reader := bufio.NewReader(file)
 
-	err = c.SendBatches(reader)
+	err = c.SendBatches(reader, pathType)
 	utils.FailOnError(err, fmt.Sprintf("Failed to send data from file %s", path))
 }
 
-func (c *Client) SendBatches(reader *bufio.Reader) error {
+func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 	lastBatch := utils.NewBatch()
 
 	// Ignore header
@@ -114,6 +123,8 @@ func (c *Client) SendBatches(reader *bufio.Reader) error {
 
 	for {
 		line, err := reader.ReadString('\n')
+
+		line = pathType + "," + line
 
 		if err == io.EOF {
 			c.SendBatch(lastBatch)

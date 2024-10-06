@@ -12,7 +12,7 @@ type Rabbit struct {
 }
 
 func NewRabbit() *Rabbit {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
 	utils.FailOnError(err, "Failed to connect to RabbitMQ")
 
 	ch, err := conn.Channel()

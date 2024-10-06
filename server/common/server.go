@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"middleware/common"
 	"middleware/common/utils"
+	"middleware/rabbitmq"
 	"net"
 	"os"
 	"os/signal"
@@ -20,6 +21,7 @@ type Server struct {
 	Listener net.Listener
 	Term     chan os.Signal
 	Clients  []*Client
+	Rabbit   *rabbitmq.Rabbit
 }
 
 func NewServer(ip string, port int) *Server {
@@ -28,6 +30,7 @@ func NewServer(ip string, port int) *Server {
 		Port:    port,
 		Term:    make(chan os.Signal, 1),
 		Clients: []*Client{},
+		Rabbit:  rabbitmq.NewRabbit(),
 	}
 
 	signal.Notify(server.Term, syscall.SIGTERM)
@@ -44,6 +47,8 @@ func (s *Server) Start() error {
 	log.Infof("Server listening on %s", s.Address)
 
 	go s.HandleShutdown()
+
+	s.Rabbit.NewExchange("raw_data", rabbitmq.ExchangeDirect)
 
 	for {
 		conn, err := s.Listener.Accept()

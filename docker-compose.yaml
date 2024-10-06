@@ -1,16 +1,16 @@
 services:
-  # rabbitmq:
-  #   image: rabbitmq:3-management
-  #   ports:
-  #     - "5672:5672" # AMQP port
-  #     - "15672:15672" # Admin interface
-  #   volumes:
-  #     - rabbitmq_data:/var/lib/rabbitmq
-  #   healthcheck:
-  #     test: ["CMD", "rabbitmqctl", "status"]
-  #     interval: 5s
-  #     timeout: 10s
-  #     retries: 5
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Admin interface
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
 
   client:
     build:
@@ -28,9 +28,11 @@ services:
       dockerfile: ./server/Dockerfile
     ports:
       - "12345:12345"
-    # depends_on:
-    #   rabbitmq:
-    #     condition: service_healthy
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
     volumes:
       - ./server/config.yaml:/app/config.yaml
 
