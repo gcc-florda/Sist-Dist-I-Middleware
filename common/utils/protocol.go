@@ -7,6 +7,11 @@ import (
 	"net"
 )
 
+const (
+	ACK = "ACK\n"
+	END = "END\n"
+)
+
 func Send(message string, conn net.Conn) {
 	messageBytes := []byte(message)
 

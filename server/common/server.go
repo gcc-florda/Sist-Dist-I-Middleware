@@ -63,7 +63,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 		log.Infof("Received message: %s", message)
 
-		if message == "END\n" {
+		if message == utils.END {
 			break
 		}
 	}

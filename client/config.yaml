@@ -3,5 +3,5 @@ server:
 log:
   level: "DEBUG"
 batch:
-  maxAmount: 300
-  sleep: "0s"
+  maxAmount: 1
+  sleep: "1s"
