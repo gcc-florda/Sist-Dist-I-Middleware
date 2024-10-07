@@ -150,5 +150,3 @@ func ReadArray[T any](d *Deserializer, f func(*Deserializer) (T, error)) ([]T, e
 	}
 	return r, nil
 }
-
-func (d *Deserializer) ReadArrayLen()

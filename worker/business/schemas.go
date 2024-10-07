@@ -1,25 +1,26 @@
 package business
 
 import (
+	"encoding/csv"
 	"middleware/common"
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Game struct {
 	AppID                   string
 	Name                    string
-	ReleaseDate             time.Time
-	EstimatedOwners         int
-	PeakCCU                 int
-	RequiredAge             int
-	Price                   float64
-	DiscountDLCCount        int
+	ReleaseDate             string
+	EstimatedOwners         string
+	PeakCCU                 string
+	RequiredAge             string
+	Price                   string
+	Discount                string
+	DLCCount                string
 	AboutTheGame            string
-	SupportedLanguages      []string
-	FullAudioLanguages      []string
+	SupportedLanguages      string
+	FullAudioLanguages      string
 	Reviews                 string
 	HeaderImage             string
 	Website                 string
@@ -28,13 +29,13 @@ type Game struct {
 	Windows                 bool
 	Mac                     bool
 	Linux                   bool
-	MetacriticScore         float64
+	MetacriticScore         string
 	MetacriticURL           string
-	UserScore               float64
-	Positive                int
-	Negative                int
-	ScoreRank               int
-	Achievements            int
+	UserScore               string
+	Positive                string
+	Negative                string
+	ScoreRank               string
+	Achievements            string
 	Recommendations         string
 	Notes                   string
 	AveragePlaytimeForever  float64
@@ -201,16 +202,31 @@ func NamedReviewCounterDeserialize(d *common.Deserializer) (*NamedReviewCounter,
 	}, nil
 }
 
-func MapCSVToStruct(row []string, result interface{}) error {
+func StrParse[T any](s string) (*T, error) {
+	var z T
+	reader := csv.NewReader(strings.NewReader(s))
+
+	row, err := reader.Read()
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = mapCSVToStruct(row, &z)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &z, nil
+}
+
+func mapCSVToStruct(row []string, result interface{}) error {
 	v := reflect.ValueOf(result).Elem()
 
 	for i := range row {
 		// Just assume that the field are in order
 		field := v.Field(i)
-
-		if !field.IsValid() {
-			continue
-		}
 
 		if err := setFieldValue(field, row[i]); err != nil {
 			return err
@@ -239,18 +255,10 @@ func setFieldValue(field reflect.Value, value string) error {
 		field.SetBool(value == "true")
 	case reflect.Slice:
 		field.Set(reflect.ValueOf(parseSlice(value)))
-	case reflect.Struct:
-		if field.Type() == reflect.TypeOf(time.Time{}) {
-			date, err := time.Parse("2006-01-02", value)
-			if err != nil {
-				return err
-			}
-			field.Set(reflect.ValueOf(date))
-		}
 	}
 	return nil
 }
 
 func parseSlice(s string) []string {
-	return strings.Split(strings.Trim(s, `"`), ";")
+	return strings.Split(strings.Trim(s, `"`), ",")
 }
