@@ -3,6 +3,8 @@ package business
 import (
 	"middleware/common"
 	"middleware/common/utils"
+	"path/filepath"
+	"reflect"
 	"sort"
 )
 
@@ -58,8 +60,8 @@ type Q2 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ2(path string, top int) (*Q2, error) {
-	s, err := common.NewTemporaryStorage(path)
+func NewQ2(base string, stage string, id string, top int) (*Q2, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_two", stage, id, "results"))
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +84,8 @@ func NewQ2(path string, top int) (*Q2, error) {
 	}, nil
 }
 
-func (q *Q2) Insert(games []*PlayedTime) error {
-	q.state.Top = append(q.state.Top, games...)
+func (q *Q2) Insert(games *PlayedTime) error {
+	q.state.Top = append(q.state.Top, games)
 
 	sort.Slice(q.state.Top, func(i, j int) bool {
 		return q.state.Top[i].AveragePlaytimeForever > q.state.Top[j].AveragePlaytimeForever
@@ -93,7 +95,6 @@ func (q *Q2) Insert(games []*PlayedTime) error {
 		q.state.Top = q.state.Top[:q.state.N]
 	}
 
-	q.storage.SaveState(q.state)
 	_, err := q.storage.SaveState(q.state)
 	if err != nil {
 		return err
@@ -102,10 +103,32 @@ func (q *Q2) Insert(games []*PlayedTime) error {
 	return nil
 }
 
-func (q *Q2) ToStage3() []*PlayedTime {
-	return q.state.Top
+func (q *Q2) NextStage() (<-chan *PlayedTime, <-chan error) {
+	ch := make(chan *PlayedTime, q.state.N) //Change this later
+	ce := make(chan error, 1)
+	go func() {
+		defer close(ch)
+		defer close(ce)
+
+		for _, pt := range q.state.Top {
+			ch <- pt
+		}
+	}()
+
+	return ch, ce
 }
 
-func (q *Q2) ToResult() []*PlayedTime {
-	return q.state.Top
+func (q *Q2) Handle(protocolData []byte) error {
+	p, err := UnmarshalMessage(protocolData)
+	if err != nil {
+		return err
+	}
+	if reflect.TypeOf(p) == reflect.TypeOf(&PlayedTime{}) {
+		return q.Insert(p.(*PlayedTime))
+	}
+	return &UnknownTypeError{}
+}
+
+func (q *Q2) Shutdown() {
+	q.storage.Close()
 }

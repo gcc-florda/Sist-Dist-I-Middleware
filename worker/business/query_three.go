@@ -3,6 +3,8 @@ package business
 import (
 	"middleware/common"
 	"middleware/common/utils"
+	"path/filepath"
+	"reflect"
 	"sort"
 )
 
@@ -49,8 +51,8 @@ type Q3 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ3(path string, top int) (*Q3, error) {
-	s, err := common.NewTemporaryStorage(path)
+func NewQ3(base string, id string, top int) (*Q3, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_three", id, "results"))
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +108,33 @@ func (q *Q3) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q3) ToResult() []*NamedReviewCounter {
-	return q.state.Top
+func (q *Q3) NextStage() (<-chan *NamedReviewCounter, <-chan error) {
+	ch := make(chan *NamedReviewCounter, q.state.N)
+	ce := make(chan error, 1)
+
+	go func() {
+		defer close(ch)
+		defer close(ce)
+
+		for _, pt := range q.state.Top {
+			ch <- pt
+		}
+	}()
+
+	return ch, ce
+}
+
+func (q *Q3) Handle(protocolData []byte) error {
+	p, err := UnmarshalMessage(protocolData)
+	if err != nil {
+		return err
+	}
+	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
+		return q.Insert(p.(*NamedReviewCounter))
+	}
+	return &UnknownTypeError{}
+}
+
+func (q *Q3) Shutdown() {
+	q.storage.Close()
 }

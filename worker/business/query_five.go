@@ -3,6 +3,8 @@ package business
 import (
 	"middleware/common"
 	"middleware/common/utils"
+	"path/filepath"
+	"reflect"
 )
 
 func Q5FilterGames(r *Game, cat string) bool {
@@ -30,8 +32,8 @@ func Q5MapReviews(r *Review) *ValidReview {
 }
 
 type Q5State struct {
-	PercentilOver uint32
-	bufSize       int
+	PercentileOver uint32
+	bufSize        int
 }
 
 type Q5 struct {
@@ -39,16 +41,16 @@ type Q5 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ5(path string, pctOver int, bufSize int) (*Q5, error) {
-	s, err := common.NewTemporaryStorage(path)
+func NewQ5(base string, id string, pctOver int, bufSize int) (*Q5, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_five", id, "results"))
 	if err != nil {
 		return nil, err
 	}
 
 	return &Q5{
 		state: &Q5State{
-			PercentilOver: uint32(pctOver),
-			bufSize:       bufSize,
+			PercentileOver: uint32(pctOver),
+			bufSize:        bufSize,
 		},
 		storage: s,
 	}, nil
@@ -61,4 +63,56 @@ func (q *Q5) Insert(rc *NamedReviewCounter) error {
 	}
 
 	return nil
+}
+
+func (q *Q5) NextStage() (chan *NamedReviewCounter, chan error) {
+	cr := make(chan *NamedReviewCounter, q.state.bufSize)
+	ce := make(chan error, 1)
+
+	go func() {
+		defer close(cr)
+		defer close(ce)
+
+		// q.storage.Reset()
+
+		// s, err := q.storage.Scanner()
+		// if err != nil {
+		// 	ce <- err
+		// 	return
+		// }
+
+		// for s.Scan() {
+		// 	b := s.Bytes()
+		// 	d := common.NewDeserializer(b)
+		// 	nrc, err := NamedReviewCounterDeserialize(&d)
+		// 	if err != nil {
+		// 		ce <- err
+		// 		return
+		// 	}
+
+		// 	cr <- nrc
+		// }
+
+		// if err := s.Err(); err != nil {
+		// 	ce <- err
+		// 	return
+		// }
+	}()
+
+	return cr, ce
+}
+
+func (q *Q5) Handle(protocolData []byte) error {
+	p, err := UnmarshalMessage(protocolData)
+	if err != nil {
+		return err
+	}
+	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
+		return q.Insert(p.(*NamedReviewCounter))
+	}
+	return &UnknownTypeError{}
+}
+
+func (q *Q5) Shutdown() {
+	q.storage.Close()
 }

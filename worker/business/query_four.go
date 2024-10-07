@@ -3,6 +3,8 @@ package business
 import (
 	"middleware/common"
 	"middleware/common/utils"
+	"path/filepath"
+	"reflect"
 )
 
 type DetectLanguage func(string) bool
@@ -41,8 +43,8 @@ type Q4 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ4(path string, over int, bufSize int) (*Q4, error) {
-	s, err := common.NewTemporaryStorage(path)
+func NewQ4(base string, id string, over int, bufSize int) (*Q4, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_four", id, "results"))
 	if err != nil {
 		return nil, err
 	}
@@ -66,11 +68,14 @@ func (q *Q4) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q4) ToResult() (chan *NamedReviewCounter, chan error) {
+func (q *Q4) NextStage() (chan *NamedReviewCounter, chan error) {
 	cr := make(chan *NamedReviewCounter, q.state.bufSize)
 	ce := make(chan error, 1)
 
 	go func() {
+		defer close(cr)
+		defer close(ce)
+
 		q.storage.Reset()
 
 		s, err := q.storage.Scanner()
@@ -98,4 +103,19 @@ func (q *Q4) ToResult() (chan *NamedReviewCounter, chan error) {
 	}()
 
 	return cr, ce
+}
+
+func (q *Q4) Handle(protocolData []byte) error {
+	p, err := UnmarshalMessage(protocolData)
+	if err != nil {
+		return err
+	}
+	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
+		return q.Insert(p.(*NamedReviewCounter))
+	}
+	return &UnknownTypeError{}
+}
+
+func (q *Q4) Shutdown() {
+	q.storage.Close()
 }

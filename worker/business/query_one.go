@@ -2,6 +2,8 @@ package business
 
 import (
 	"middleware/common"
+	"path/filepath"
+	"reflect"
 )
 
 func Q1Map(r *Game) *SOCounter {
@@ -27,8 +29,8 @@ type Q1 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ1(path string) (*Q1, error) {
-	s, err := common.NewTemporaryStorage(path)
+func NewQ1(base string, id string, stage string) (*Q1, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_one", stage, id, "results"))
 
 	if err != nil {
 		return nil, err
@@ -64,17 +66,38 @@ func (q *Q1) Count(r *SOCounter) error {
 	return nil
 }
 
-func (q *Q1) ToStage3() *SOCounter {
-	return q.state
-}
-
-func (q *Q1) ToResult() *SOCounter {
-	return q.state
-}
-
 func boolToCounter(b bool) uint32 {
 	if b {
 		return 1
 	}
 	return 0
+}
+
+func (q *Q1) NextStage() (<-chan *SOCounter, <-chan error) {
+	ch := make(chan *SOCounter, 1) //Change this later
+	ce := make(chan error, 1)
+
+	go func() {
+		defer close(ch)
+		defer close(ce)
+
+		ch <- q.state
+	}()
+
+	return ch, ce
+}
+
+func (q *Q1) Handle(protocolData []byte) error {
+	p, err := UnmarshalMessage(protocolData)
+	if err != nil {
+		return err
+	}
+	if reflect.TypeOf(p) == reflect.TypeOf(&SOCounter{}) {
+		return q.Count(p.(*SOCounter))
+	}
+	return &UnknownTypeError{}
+}
+
+func (q *Q1) Shutdown() {
+	q.storage.Close()
 }

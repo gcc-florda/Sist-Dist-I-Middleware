@@ -5,11 +5,12 @@ import (
 	"middleware/common"
 	"middleware/worker/business"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
-var gtp = "./test_files/games"
-var rtp = "./test_files/review"
+var gtp = filepath.Join(".", "test_files", "join", "1", "game.results")
+var rtp = filepath.Join(".", "test_files", "join", "1", "review.results")
 
 func deleteFiles() {
 	os.Remove(gtp)
@@ -71,7 +72,7 @@ func recreateFiles() {
 
 func TestJoinOutput(t *testing.T) {
 	recreateFiles()
-	j, err := business.NewJoin(rtp, gtp, 1)
+	j, err := business.NewJoin("test_files", "1", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestJoinOutput(t *testing.T) {
 		"Test_4": 500,
 	}
 
-	cr, ce := j.ToStage3()
+	cr, ce := j.NextStage()
 
 loop:
 	for {
@@ -106,7 +107,7 @@ loop:
 
 func TestJoinAddReview(t *testing.T) {
 	deleteFiles()
-	j, err := business.NewJoin(rtp, gtp, 1)
+	j, err := business.NewJoin("test_files", "1", 1)
 	if err != nil {
 		t.Fatal(err)
 	}

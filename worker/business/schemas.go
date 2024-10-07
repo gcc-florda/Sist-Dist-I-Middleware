@@ -8,6 +8,19 @@ import (
 	"strings"
 )
 
+type MessageType = uint8
+
+const (
+	Type_Game MessageType = iota
+	Type_Review
+	Type_SOCounter
+	Type_PlayedTime
+	Type_GameName
+	Type_ValidReview
+	Type_ReviewCounter
+	Type_NamedReviewCounter
+)
+
 type Game struct {
 	AppID                   string
 	Name                    string
@@ -148,6 +161,22 @@ type ValidReview struct {
 	AppID string
 }
 
+func (v *ValidReview) Serialize() []byte {
+	se := common.NewSerializer()
+	return se.WriteString(v.AppID).ToBytes()
+}
+
+func ValidReviewDeserialize(d *common.Deserializer) (*ValidReview, error) {
+	i, err := d.ReadString()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ValidReview{
+		AppID: i,
+	}, nil
+}
+
 type ReviewCounter struct {
 	AppID string
 	Count uint32
@@ -261,4 +290,66 @@ func setFieldValue(field reflect.Value, value string) error {
 
 func parseSlice(s string) []string {
 	return strings.Split(strings.Trim(s, `"`), ",")
+}
+
+func MarshalMessage(c any) ([]byte, error) {
+	s := common.NewSerializer()
+	switch v := c.(type) {
+	case SOCounter:
+		return s.WriteUint8(Type_SOCounter).WriteBytes(v.Serialize()).ToBytes(), nil
+	case PlayedTime:
+		return s.WriteUint8(Type_PlayedTime).WriteBytes(v.Serialize()).ToBytes(), nil
+	case GameName:
+		return s.WriteUint8(Type_GameName).WriteBytes(v.Serialize()).ToBytes(), nil
+	case ValidReview:
+		return s.WriteUint8(Type_ValidReview).WriteBytes(v.Serialize()).ToBytes(), nil
+	case ReviewCounter:
+		return s.WriteUint8(Type_ReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
+	case NamedReviewCounter:
+		return s.WriteUint8(Type_NamedReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
+	}
+	return nil, &UnknownTypeError{}
+}
+
+func UnmarshalMessage(messageBytes []byte) (any, error) {
+	d := common.NewDeserializer(messageBytes)
+	t, err := d.ReadUint8()
+	if err != nil {
+		return nil, err
+	}
+
+	switch t {
+	case Type_Game:
+		s, err := d.ReadString()
+		if err != nil {
+			return nil, err
+		}
+		return StrParse[Game](s)
+	case Type_Review:
+		s, err := d.ReadString()
+		if err != nil {
+			return nil, err
+		}
+		return StrParse[Review](s)
+	case Type_SOCounter:
+		return SOCounterDeserialize(&d)
+	case Type_PlayedTime:
+		return PlayedTimeDeserialize(&d)
+	case Type_GameName:
+		return GameNameDeserialize(&d)
+	case Type_ValidReview:
+		return ValidReviewDeserialize(&d)
+	case Type_ReviewCounter:
+		return ReviewCounterDeserialize(&d)
+	case Type_NamedReviewCounter:
+		return NamedReviewCounterDeserialize(&d)
+	}
+	return nil, &UnknownTypeError{}
+}
+
+type UnknownTypeError struct {
+}
+
+func (e *UnknownTypeError) Error() string {
+	return "The provided type is not something that is known"
 }

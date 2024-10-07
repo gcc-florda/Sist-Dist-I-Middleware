@@ -1,6 +1,10 @@
 package business
 
-import "middleware/common"
+import (
+	"middleware/common"
+	"path/filepath"
+	"reflect"
+)
 
 type JoinState struct {
 	bufSize int
@@ -12,13 +16,13 @@ type Join struct {
 	gameStorage   *common.TemporaryStorage
 }
 
-func NewJoin(reviewPath string, gamePath string, bufSize int) (*Join, error) {
-	r, err := common.NewTemporaryStorage(reviewPath)
+func NewJoin(base string, id string, bufSize int) (*Join, error) {
+	r, err := common.NewTemporaryStorage(filepath.Join(".", base, "join", id, "review.results"))
 	if err != nil {
 		return nil, err
 	}
 
-	g, err := common.NewTemporaryStorage(gamePath)
+	g, err := common.NewTemporaryStorage(filepath.Join(".", base, "join", id, "game.results"))
 	if err != nil {
 		return nil, err
 	}
@@ -110,24 +114,24 @@ func (q *Join) addReview(appId string) error {
 	return nil
 }
 
-func (q *Join) ToStage3() (chan *NamedReviewCounter, chan error) {
+func (q *Join) NextStage() (<-chan *NamedReviewCounter, <-chan error) {
 	cache := common.NewJoinCache[string, *ReviewCounter](q.state.bufSize)
 	cr := make(chan *NamedReviewCounter, q.state.bufSize)
 	ce := make(chan error, 1)
 	go func() {
+		defer close(cr)
+		defer close(ce)
 		q.gameStorage.Reset()
 		q.reviewStorage.Reset()
 
 		gss, err := q.gameStorage.Scanner()
 		if err != nil {
 			ce <- err
-			close(ce)
 			return
 		}
 		rss, err := q.reviewStorage.Scanner()
 		if err != nil {
 			ce <- err
-			close(ce)
 			return
 		}
 
@@ -191,13 +195,30 @@ func (q *Join) ToStage3() (chan *NamedReviewCounter, chan error) {
 			err = tryJoin(gn)
 			if err != nil {
 				ce <- err
-				close(ce)
 				return
 			}
 		}
-
-		close(cr)
 	}()
 
 	return cr, ce
+}
+
+func (q *Join) Handle(protocolData []byte) error {
+	p, err := UnmarshalMessage(protocolData)
+	if err != nil {
+		return err
+	}
+	if reflect.TypeOf(p) == reflect.TypeOf(&ValidReview{}) {
+		return q.AddReview(p.(*ValidReview))
+	}
+
+	if reflect.TypeOf(p) == reflect.TypeOf(&GameName{}) {
+		return q.AddGame(p.(*GameName))
+	}
+	return &UnknownTypeError{}
+}
+
+func (q *Join) Shutdown() {
+	q.gameStorage.Close()
+	q.reviewStorage.Close()
 }
