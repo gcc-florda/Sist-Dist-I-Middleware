@@ -8,6 +8,7 @@ RUN go mod download
 
 COPY ./server/ ./server
 COPY ./common/ ./common
+COPY ./rabbitmq/ ./rabbitmq
 
 RUN go build -o server.bin ./server
 
