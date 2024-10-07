@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/op/go-logging"
@@ -28,7 +29,12 @@ func (m *ClosedFileError) Error() string {
 }
 
 func NewTemporaryStorage(path string) (*TemporaryStorage, error) {
-	f, err := os.Open(path)
+	dir := filepath.Dir(path)
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +88,10 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 		}
 	}
 	return t.file.Write(data)
+}
+
+func (t *TemporaryStorage) AppendLine(data []byte) (int, error) {
+	return t.Append(append(data, '\n'))
 }
 
 func (t *TemporaryStorage) Reset() {
