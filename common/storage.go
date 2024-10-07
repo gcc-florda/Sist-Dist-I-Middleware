@@ -7,11 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/op/go-logging"
 )
-
-var log = logging.MustGetLogger("log")
 
 type TemporaryStorage struct {
 	filepath string

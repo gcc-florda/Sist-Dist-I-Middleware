@@ -1,4 +1,4 @@
-package common
+package src
 
 import (
 	"middleware/common"

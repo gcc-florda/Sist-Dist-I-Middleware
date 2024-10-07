@@ -1,9 +1,8 @@
-package common
+package src
 
 import (
 	"fmt"
 	"middleware/common"
-	"middleware/common/utils"
 	"middleware/rabbitmq"
 	"net"
 	"os"
@@ -35,20 +34,32 @@ func NewServer(ip string, port int) *Server {
 
 	signal.Notify(server.Term, syscall.SIGTERM)
 
+	server.InitRabbit()
+
 	return server
+}
+
+func (s *Server) InitRabbit() {
+	ex := s.Rabbit.NewExchange(common.ExchangeNameRawData, common.ExchangeDirect)
+
+	qG := s.Rabbit.NewQueue(common.RoutingGames)
+	qR := s.Rabbit.NewQueue(common.RoutingReviews)
+	qP := s.Rabbit.NewQueue(common.RoutingProtocol)
+
+	qG.Bind(ex, common.RoutingGames)
+	qR.Bind(ex, common.RoutingReviews)
+	qP.Bind(ex, common.RoutingProtocol)
 }
 
 func (s *Server) Start() error {
 	var err error
 	s.Listener, err = net.Listen("tcp", s.Address)
-	utils.FailOnError(err, "Failed to start server")
+	common.FailOnError(err, "Failed to start server")
 	defer s.Listener.Close()
 
 	log.Infof("Server listening on %s", s.Address)
 
 	go s.HandleShutdown()
-
-	s.Rabbit.NewExchange("raw_data", rabbitmq.ExchangeDirect)
 
 	for {
 		conn, err := s.Listener.Accept()
@@ -71,11 +82,11 @@ func (s *Server) HandleConnection(client *Client) {
 	for {
 		message := client.Recv()
 
-		log.Infof("Received message: %s", message)
-
 		if message == common.END {
 			break
 		}
+
+		s.Rabbit.Publish(common.ExchangeNameRawData, common.GetRoutingKey(message), common.NewMessage(client.Id, message))
 	}
 }
 

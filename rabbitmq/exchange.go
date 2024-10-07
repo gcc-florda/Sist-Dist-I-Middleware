@@ -1,7 +1,7 @@
 package rabbitmq
 
 import (
-	"middleware/common/utils"
+	"middleware/common"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -18,12 +18,6 @@ type Exchange struct {
 	Arguments   []string
 }
 
-const (
-	ExchangeDirect = "direct"
-	ExchangeFanout = "fanout"
-	ExchangeTopic  = "topic"
-)
-
 func (e *Exchange) Declare() {
 	err := e.Channel.ExchangeDeclare(
 		e.Name,
@@ -34,12 +28,12 @@ func (e *Exchange) Declare() {
 		e.NoWait,
 		nil,
 	)
-	utils.FailOnError(err, "Failed to declare an exchange")
+	common.FailOnError(err, "Failed to declare an exchange")
 
 	e.Context = NewContext()
 }
 
-func (e *Exchange) Publish(routingKey string, body []byte) { // TODO: body Serializable
+func (e *Exchange) Publish(routingKey string, body common.Serializable) {
 	err := e.Channel.PublishWithContext(e.Context.Context,
 		e.Name,
 		routingKey,
@@ -47,8 +41,10 @@ func (e *Exchange) Publish(routingKey string, body []byte) { // TODO: body Seria
 		false,
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        body, // TODO: body.Serialize(),
+			Body:        body.Serialize(),
 		},
 	)
-	utils.FailOnError(err, "Failed to publish a message")
+	common.FailOnError(err, "Failed to publish a message")
+
+	log.Debugf("Published message to exchange %s with routing key %s", e.Name, routingKey)
 }

@@ -1,11 +1,10 @@
-package common
+package src
 
 import (
 	"bufio"
 	"fmt"
 	"io"
 	"middleware/common"
-	"middleware/common/utils"
 	"net"
 	"os"
 	"os/signal"
@@ -54,7 +53,7 @@ func (c *Client) HandleShutdown() {
 
 func (c *Client) CreateSocket() {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
-	utils.FailOnError(err, "Failed to connect to server")
+	common.FailOnError(err, "Failed to connect to server")
 	c.conn = conn
 }
 
@@ -90,7 +89,7 @@ func (c *Client) SendData(path string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	file, err := c.OpenFile(path)
-	utils.FailOnError(err, fmt.Sprintf("Failed to open file %s", path))
+	common.FailOnError(err, fmt.Sprintf("Failed to open file %s", path))
 
 	defer file.Close()
 
@@ -105,11 +104,11 @@ func (c *Client) SendData(path string, wg *sync.WaitGroup) {
 	reader := bufio.NewReader(file)
 
 	err = c.SendBatches(reader, pathType)
-	utils.FailOnError(err, fmt.Sprintf("Failed to send data from file %s", path))
+	common.FailOnError(err, fmt.Sprintf("Failed to send data from file %s", path))
 }
 
 func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
-	lastBatch := utils.NewBatch()
+	lastBatch := common.NewBatch()
 
 	// Ignore header
 	_, err := reader.ReadString('\n')
@@ -119,7 +118,7 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 		return nil
 	}
 
-	utils.FailOnError(err, "Failed to read header from file")
+	common.FailOnError(err, "Failed to read header from file")
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -140,7 +139,7 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 			c.SendBatch(lastBatch)
 			time.Sleep(c.config.BatchSleep)
 
-			lastBatch = utils.NewBatch()
+			lastBatch = common.NewBatch()
 		}
 
 		lastBatch.AppendData(line)
@@ -149,7 +148,7 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 	return nil
 }
 
-func (c *Client) SendBatch(batch utils.Batch) {
+func (c *Client) SendBatch(batch common.Batch) {
 	if batch.Size() == 0 {
 		return
 	}
