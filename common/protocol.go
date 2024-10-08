@@ -49,9 +49,6 @@ func Receive(conn net.Conn) string {
 func GetRoutingKey(line string) string {
 	lineType := int(line[0] - '0')
 
-	log.Debugf("Routing key for line[0]: %s", line[0])
-	log.Debugf("Routing key for line: %v", lineType)
-
 	if lineType == TypeGame {
 		return RoutingGames
 	} else if lineType == TypeReview {

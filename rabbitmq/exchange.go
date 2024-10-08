@@ -48,3 +48,7 @@ func (e *Exchange) Publish(routingKey string, body common.Serializable) {
 
 	log.Debugf("Published message to exchange %s with routing key %s", e.Name, routingKey)
 }
+
+func (e *Exchange) Close() {
+	e.Context.Close()
+}
