@@ -34,6 +34,10 @@ func NewRabbit() *Rabbit {
 func (r *Rabbit) Close() {
 	r.Connection.Close()
 	r.Channel.Close()
+
+	for _, ex := range r.Exchanges {
+		ex.Close()
+	}
 }
 
 func (r *Rabbit) NewExchange(name string, exchangeType string) *Exchange {

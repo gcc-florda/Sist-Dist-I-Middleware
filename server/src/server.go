@@ -52,14 +52,14 @@ func (s *Server) InitRabbit() {
 }
 
 func (s *Server) Start() error {
+	go s.HandleShutdown()
+
 	var err error
 	s.Listener, err = net.Listen("tcp", s.Address)
 	common.FailOnError(err, "Failed to start server")
 	defer s.Listener.Close()
 
 	log.Infof("Server listening on %s", s.Address)
-
-	go s.HandleShutdown()
 
 	for {
 		conn, err := s.Listener.Accept()
@@ -102,4 +102,6 @@ func (s *Server) HandleShutdown() {
 		client.Close()
 		log.Infof("Closed connection for client: %s", client.Id)
 	}
+
+	s.Rabbit.Close()
 }
