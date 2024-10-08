@@ -3,6 +3,8 @@ package controller
 import (
 	"middleware/common"
 	"middleware/rabbitmq"
+	"middleware/worker/controller/enums"
+	"reflect"
 
 	"github.com/op/go-logging"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -10,83 +12,188 @@ import (
 
 var log = logging.MustGetLogger("log")
 
+const (
+	Routing_Broadcast = iota
+	Routing_Unicast
+)
+
 type JobID = string
 
-type HandlerFactory func(job JobID) (Handler, error)
+type HandlerFactory func(job JobID) (Handler, EOFValidator, error)
 
+type EOFValidator interface {
+	Finish(receivedEOFs map[enums.TokenName]uint) (*EOFMessage, bool)
+	Update(enums.TokenName)
+}
 type Handler interface {
-	Handle(protocolData []byte) error
-	NextStage() (<-chan *common.Serializable, <-chan error)
+	Handle(protocolData []byte) (Partitionable, error)
+	NextStage() (<-chan Partitionable, <-chan error)
 	Shutdown()
+}
+
+type Partitionable interface {
+	common.Serializable
+	PartitionKey() string
 }
 
 type Protocol interface {
 	Unmarshal(rawData []byte) (DataMessage, error)
-	Marshal(any) ([]byte, error)
+	Marshal(JobID, common.Serializable) (common.Serializable, error)
+	Route(partitionKey string) (routingKey string)
+	Broadcast() (routes []string)
 }
 
 type DataMessage interface {
 	JobID() JobID
+	IsEOF() bool
 	Data() []byte
 }
 
-type Controller struct {
-	from        *rabbitmq.Queue
-	consumeFrom <-chan amqp.Delivery
-	to          *rabbitmq.Exchange
-	protocol    Protocol
-	factory     HandlerFactory
-	handlers    map[JobID]Handler
+type routing struct {
+	Type int
+	Key  string
 }
 
-func NewController(from *rabbitmq.Queue, to *rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
+type messageToSend struct {
+	Routing routing
+	JobID   JobID
+	Body    common.Serializable
+}
+
+type messageFromQueue struct {
+	Delivery amqp.Delivery
+	Message  DataMessage
+}
+
+type Controller struct {
+	rcvFrom      []*rabbitmq.Queue
+	to           []*rabbitmq.Exchange
+	handlerChan  chan *messageToSend
+	protocol     Protocol
+	factory      HandlerFactory
+	handlers     map[JobID]*HandlerRuntime
+	housekeeping chan JobID
+}
+
+func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
+
+	mts := make(chan *messageToSend, common.Config.GetInt("controllers.bufferSize.toSend"))
+	h := make(chan JobID, common.Config.GetInt("controllers.bufferSize.deadHandlers"))
 
 	return &Controller{
-		from:        from,
-		consumeFrom: from.Consume(),
-		to:          to,
-		protocol:    protocol,
-		factory:     handlerF,
-		handlers:    make(map[JobID]Handler),
+		rcvFrom:      from,
+		to:           to,
+		protocol:     protocol,
+		handlerChan:  mts,
+		factory:      handlerF,
+		handlers:     make(map[JobID]*HandlerRuntime),
+		housekeeping: h,
 	}
 }
 
-func (q *Controller) getHandler(j JobID) (Handler, error) {
+func (q *Controller) getHandler(j JobID) (*HandlerRuntime, error) {
 	v, ok := q.handlers[j]
 	if !ok {
-		v, err := q.factory(j)
+		v, eof, err := q.factory(j)
 		if err != nil {
 			return nil, err
 		}
-		q.handlers[j] = v
+		hr, err := NewHandlerRuntime(
+			j,
+			v,
+			eof,
+			q.handlerChan,
+			q.housekeeping,
+		)
+		if err != nil {
+			return nil, err
+		}
+		q.handlers[j] = hr
 	}
 	return v, nil
 }
 
+func (q *Controller) removeHandler(j JobID) {
+	delete(q.handlers, j)
+}
+
+func (q *Controller) publish(routing string, m common.Serializable) {
+	for _, ex := range q.to {
+		ex.Publish(routing, m)
+	}
+}
+
+func (q *Controller) broadcast(m common.Serializable) {
+	rks := q.protocol.Broadcast()
+	for _, k := range rks {
+		q.publish(k, m)
+	}
+}
+
 func (q *Controller) Start() {
-	for message := range q.consumeFrom {
-		parsed, err := q.protocol.Unmarshal(message.Body)
+	go func() {
+		for h := range q.housekeeping {
+			q.removeHandler(h)
+		}
+	}()
+
+	go func() {
+		for mts := range q.handlerChan {
+			m, err := q.protocol.Marshal(mts.JobID, mts.Body)
+			if err != nil {
+				log.Error(err)
+			}
+			if mts.Routing.Type == Routing_Broadcast {
+				q.broadcast(m)
+			}
+			if mts.Routing.Type == Routing_Unicast {
+				q.publish(q.protocol.Route(mts.Routing.Key), m)
+			}
+		}
+	}()
+
+	chans := make([]<-chan amqp.Delivery, len(q.rcvFrom))
+	for i, v := range q.rcvFrom {
+		chans[i] = v.Consume()
+	}
+
+	cases := make([]reflect.SelectCase, len(q.rcvFrom))
+	for i, ch := range chans {
+		cases[i] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(ch),
+		}
+	}
+
+mainloop:
+	for {
+		chosen, value, ok := reflect.Select(cases)
+		if !ok {
+			log.Errorf("Closed Queue %s, exiting loop as all Queues are needed.", q.rcvFrom[chosen].ExternalName)
+			break mainloop
+		}
+		d, ok := value.Interface().(amqp.Delivery)
+		if !ok {
+			log.Fatalf("This really shouldn't happen. How did we got here")
+		}
+
+		dm, err := q.protocol.Unmarshal(d.Body)
 		if err != nil {
-			log.Errorf("Error while parsing the Queue %s message: %s", q.from.ExternalName, err)
-			message.Nack(false, true)
+			log.Errorf("Error while parsing the Queue %s message: %s", q.rcvFrom[chosen].ExternalName, err)
+			d.Nack(false, true)
 			continue
 		}
-		h, err := q.getHandler(parsed.JobID())
 
+		h, err := q.getHandler(dm.JobID())
 		if err != nil {
-			log.Errorf("Error while creating the Handler for Queue %s: %s", q.from.ExternalName, err)
-			message.Nack(false, true)
+			log.Errorf("Error while gettin a handler for Queue %s, JobID: %s Error: %s", q.rcvFrom[chosen].ExternalName, dm.JobID(), err)
+			d.Nack(false, true)
 			continue
 		}
 
-		err = h.Handle(parsed.Data())
-
-		if err != nil {
-			log.Errorf("Error while handling the message from Queue %s: %s", q.from.ExternalName, err)
-			message.Nack(false, true)
-			continue
+		h.forJob <- &messageFromQueue{
+			Delivery: d,
+			Message:  dm,
 		}
-
-		message.Ack(false)
 	}
 }

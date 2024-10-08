@@ -83,6 +83,10 @@ func (s *SOCounter) Serialize() []byte {
 	return se.WriteUint32(s.Windows).WriteUint32(s.Linux).WriteUint32(s.Mac).ToBytes()
 }
 
+func (s *SOCounter) PartitionKey() string {
+	return common.GenerateRandomString(10)
+}
+
 func SOCounterDeserialize(d *common.Deserializer) (*SOCounter, error) {
 	windows, err := d.ReadUint32()
 	if err != nil {
@@ -115,6 +119,10 @@ func (p *PlayedTime) Serialize() []byte {
 	return se.WriteFloat64(p.AveragePlaytimeForever).WriteString(p.Name).ToBytes()
 }
 
+func (p *PlayedTime) PlayedTime() string {
+	return p.Name
+}
+
 func PlayedTimeDeserialize(d *common.Deserializer) (*PlayedTime, error) {
 	pt, err := d.ReadFloat64()
 	if err != nil {
@@ -138,6 +146,10 @@ type GameName struct {
 func (g *GameName) Serialize() []byte {
 	se := common.NewSerializer()
 	return se.WriteString(g.AppID).WriteString(g.Name).ToBytes()
+}
+
+func (g *GameName) PartitionKey() string {
+	return g.AppID
 }
 
 func GameNameDeserialize(d *common.Deserializer) (*GameName, error) {
@@ -166,6 +178,10 @@ func (v *ValidReview) Serialize() []byte {
 	return se.WriteString(v.AppID).ToBytes()
 }
 
+func (v *ValidReview) PartitionKey() string {
+	return v.AppID
+}
+
 func ValidReviewDeserialize(d *common.Deserializer) (*ValidReview, error) {
 	i, err := d.ReadString()
 	if err != nil {
@@ -185,6 +201,10 @@ type ReviewCounter struct {
 func (c *ReviewCounter) Serialize() []byte {
 	se := common.NewSerializer()
 	return se.WriteString(c.AppID).WriteUint32(c.Count).ToBytes()
+}
+
+func (c *ReviewCounter) PartitionKey() string {
+	return c.AppID
 }
 
 func ReviewCounterDeserialize(d *common.Deserializer) (*ReviewCounter, error) {
@@ -212,6 +232,10 @@ type NamedReviewCounter struct {
 func (c *NamedReviewCounter) Serialize() []byte {
 	se := common.NewSerializer()
 	return se.WriteString(c.Name).WriteUint32(c.Count).ToBytes()
+}
+
+func (c *NamedReviewCounter) PartitionKey() string {
+	return c.Name
 }
 
 func NamedReviewCounterDeserialize(d *common.Deserializer) (*NamedReviewCounter, error) {
@@ -313,6 +337,10 @@ func MarshalMessage(c any) ([]byte, error) {
 
 func UnmarshalMessage(messageBytes []byte) (any, error) {
 	d := common.NewDeserializer(messageBytes)
+	return UnmarshalMessageDeserializer(&d)
+}
+
+func UnmarshalMessageDeserializer(d *common.Deserializer) (any, error) {
 	t, err := d.ReadUint8()
 	if err != nil {
 		return nil, err
@@ -332,17 +360,17 @@ func UnmarshalMessage(messageBytes []byte) (any, error) {
 		}
 		return StrParse[Review](s)
 	case Type_SOCounter:
-		return SOCounterDeserialize(&d)
+		return SOCounterDeserialize(d)
 	case Type_PlayedTime:
-		return PlayedTimeDeserialize(&d)
+		return PlayedTimeDeserialize(d)
 	case Type_GameName:
-		return GameNameDeserialize(&d)
+		return GameNameDeserialize(d)
 	case Type_ValidReview:
-		return ValidReviewDeserialize(&d)
+		return ValidReviewDeserialize(d)
 	case Type_ReviewCounter:
-		return ReviewCounterDeserialize(&d)
+		return ReviewCounterDeserialize(d)
 	case Type_NamedReviewCounter:
-		return NamedReviewCounterDeserialize(&d)
+		return NamedReviewCounterDeserialize(d)
 	}
 	return nil, &UnknownTypeError{}
 }

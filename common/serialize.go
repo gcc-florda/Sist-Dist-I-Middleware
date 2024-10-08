@@ -81,12 +81,12 @@ func (s *Serializer) ToBytes() []byte {
 }
 
 type Deserializer struct {
-	buf *bytes.Buffer
+	Buf *bytes.Buffer
 }
 
 func NewDeserializer(data []byte) Deserializer {
 	return Deserializer{
-		buf: bytes.NewBuffer(data),
+		Buf: bytes.NewBuffer(data),
 	}
 }
 
@@ -96,7 +96,7 @@ func (d *Deserializer) ReadString() (string, error) {
 		return "", err
 	}
 	str := make([]byte, length)
-	if _, err := d.buf.Read(str); err != nil {
+	if _, err := d.Buf.Read(str); err != nil {
 		return "", err
 	}
 	return string(str), nil
@@ -104,7 +104,7 @@ func (d *Deserializer) ReadString() (string, error) {
 
 func (d *Deserializer) ReadUint32() (uint32, error) {
 	var n uint32
-	if err := binary.Read(d.buf, binary.BigEndian, &n); err != nil {
+	if err := binary.Read(d.Buf, binary.BigEndian, &n); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -112,7 +112,7 @@ func (d *Deserializer) ReadUint32() (uint32, error) {
 
 func (d *Deserializer) ReadInt32() (int32, error) {
 	var n int32
-	if err := binary.Read(d.buf, binary.BigEndian, &n); err != nil {
+	if err := binary.Read(d.Buf, binary.BigEndian, &n); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -120,7 +120,7 @@ func (d *Deserializer) ReadInt32() (int32, error) {
 
 func (d *Deserializer) ReadFloat64() (float64, error) {
 	var n float64
-	if err := binary.Read(d.buf, binary.BigEndian, &n); err != nil {
+	if err := binary.Read(d.Buf, binary.BigEndian, &n); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -128,7 +128,7 @@ func (d *Deserializer) ReadFloat64() (float64, error) {
 
 func (d *Deserializer) ReadUint8() (uint8, error) {
 	var n uint8
-	if err := binary.Read(d.buf, binary.BigEndian, &n); err != nil {
+	if err := binary.Read(d.Buf, binary.BigEndian, &n); err != nil {
 		return 0, err
 	}
 	return n, nil

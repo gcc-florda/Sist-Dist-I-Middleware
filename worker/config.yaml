@@ -1,0 +1,21 @@
+controllers:
+  bufferSize:
+    toSend: 50
+    deadHandlers: 20
+  
+  use:
+    - type: MAP_FILTER
+      queries:
+        - Q1
+        - Q2
+        - Q3
+        - Q4
+        - Q5
+     
+    - type: Q1_STAGE_3
+      partition:
+        size: 10
+    
+    - type: Q2_STAGE_2
+      partition:
+        size: 3
