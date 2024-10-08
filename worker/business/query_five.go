@@ -13,7 +13,7 @@ import (
 	"reflect"
 )
 
-// Batch size in bytes (34MB)
+// Batch size in bytes
 const maxBatchSize = 34 * 1024 * 1024
 
 func Q5FilterGames(r *Game, cat string) bool {
