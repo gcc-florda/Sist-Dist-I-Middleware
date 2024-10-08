@@ -1,7 +1,7 @@
 package rabbitmq
 
 import (
-	"middleware/common/utils"
+	"middleware/common"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -13,10 +13,10 @@ type Rabbit struct {
 
 func NewRabbit() *Rabbit {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	utils.FailOnError(err, "Failed to connect to RabbitMQ")
+	common.FailOnError(err, "Failed to connect to RabbitMQ")
 
 	ch, err := conn.Channel()
-	utils.FailOnError(err, "Failed to open a channel")
+	common.FailOnError(err, "Failed to open a channel")
 
 	return &Rabbit{
 		connection: conn,

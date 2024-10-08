@@ -1,4 +1,4 @@
-package utils
+package common
 
 import (
 	"os"
@@ -6,8 +6,6 @@ import (
 	"github.com/op/go-logging"
 	"github.com/spf13/viper"
 )
-
-var log = logging.MustGetLogger("log")
 
 func InitConfig(path string) (*viper.Viper, error) {
 	v := viper.New()

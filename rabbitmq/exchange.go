@@ -1,7 +1,7 @@
 package rabbitmq
 
 import (
-	"middleware/common/utils"
+	"middleware/common"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -34,7 +34,7 @@ func (e *Exchange) Declare() {
 		e.NoWait,
 		nil,
 	)
-	utils.FailOnError(err, "Failed to declare an exchange")
+	common.FailOnError(err, "Failed to declare an exchange")
 
 	e.Context = NewContext()
 }
@@ -50,5 +50,5 @@ func (e *Exchange) Publish(routingKey string, body []byte) { // TODO: body Seria
 			Body:        body, // TODO: body.Serialize(),
 		},
 	)
-	utils.FailOnError(err, "Failed to publish a message")
+	common.FailOnError(err, "Failed to publish a message")
 }

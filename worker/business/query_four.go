@@ -2,7 +2,6 @@ package business
 
 import (
 	"middleware/common"
-	"middleware/common/utils"
 	"path/filepath"
 	"reflect"
 )
@@ -10,7 +9,7 @@ import (
 type DetectLanguage func(string) bool
 
 func Q4FilterGames(r *Game, cat string) bool {
-	return utils.Contains(r.Categories, cat)
+	return common.Contains(r.Categories, cat)
 }
 
 func Q4FilterReviews(r *Review, isLanguage DetectLanguage, pos bool) bool {

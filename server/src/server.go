@@ -1,8 +1,9 @@
-package common
+package src
 
 import (
 	"fmt"
-	"middleware/common/utils"
+	"middleware/common"
+
 	"net"
 	"os"
 	"os/signal"
@@ -35,7 +36,7 @@ func NewServer(ip string, port int) *Server {
 func (s *Server) Start() error {
 	var err error
 	s.listener, err = net.Listen("tcp", s.address)
-	utils.FailOnError(err, "Failed to start server")
+	common.FailOnError(err, "Failed to start server")
 	defer s.listener.Close()
 
 	log.Infof("Server listening on %s", s.address)
@@ -59,11 +60,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	log.Infof("Client connected: %s", conn.RemoteAddr().String())
 
 	for {
-		message := utils.Receive(conn)
+		message := common.Receive(conn)
 
 		log.Infof("Received message: %s", message)
 
-		if message == utils.END {
+		if message == common.END {
 			break
 		}
 	}

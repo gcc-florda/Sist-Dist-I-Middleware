@@ -1,7 +1,7 @@
 package rabbitmq
 
 import (
-	"middleware/common/utils"
+	"middleware/common"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -26,7 +26,7 @@ func (q *Queue) Declare() {
 		q.NoWait,
 		nil,
 	)
-	utils.FailOnError(err, "Failed to declare a queue")
+	common.FailOnError(err, "Failed to declare a queue")
 
 	q.Name = queue.Name
 }
@@ -39,7 +39,7 @@ func (q *Queue) Bind(exchange *Exchange, routingKey string) {
 		false,
 		nil,
 	)
-	utils.FailOnError(err, "Failed to bind a queue")
+	common.FailOnError(err, "Failed to bind a queue")
 }
 
 func (q *Queue) Consume() <-chan amqp.Delivery {
@@ -52,7 +52,7 @@ func (q *Queue) Consume() <-chan amqp.Delivery {
 		false,
 		nil,
 	)
-	utils.FailOnError(err, "Failed to consume messages")
+	common.FailOnError(err, "Failed to consume messages")
 
 	return messages
 }

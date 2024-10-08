@@ -2,13 +2,13 @@ package business
 
 import (
 	"middleware/common"
-	"middleware/common/utils"
+
 	"path/filepath"
 	"reflect"
 )
 
 func Q5FilterGames(r *Game, cat string) bool {
-	return utils.Contains(r.Categories, cat)
+	return common.Contains(r.Categories, cat)
 }
 
 func Q5FilterReviews(r *Review, pos bool) bool {
