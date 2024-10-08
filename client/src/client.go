@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,54 +28,54 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	config ClientConfig
-	conn   net.Conn
-	term   chan os.Signal
+	Config     ClientConfig
+	Connection net.Conn
+	Term       chan os.Signal
 }
 
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
-		config: config,
-		term:   make(chan os.Signal, 1),
+		Config: config,
+		Term:   make(chan os.Signal, 1),
 	}
 
-	signal.Notify(client.term, syscall.SIGTERM)
+	signal.Notify(client.Term, syscall.SIGTERM)
 
 	return client
 }
 
 func (c *Client) HandleShutdown() {
-	<-c.term
+	<-c.Term
 	log.Criticalf("Received SIGTERM")
-	if c.conn != nil {
-		c.conn.Close()
+	if c.Connection != nil {
+		c.Connection.Close()
 	}
 }
 
 func (c *Client) CreateSocket() {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
+	conn, err := net.Dial("tcp", c.Config.ServerAddress)
 	common.FailOnError(err, "Failed to connect to server")
-	c.conn = conn
+	c.Connection = conn
 }
 
 func (c *Client) StartClient() {
 	go c.HandleShutdown()
 
 	c.CreateSocket()
-	log.Infof("Connected to server at %s", c.config.ServerAddress)
+	log.Infof("Connected to server at %s", c.Config.ServerAddress)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go c.SendData(c.config.GamesFilePath, &wg)
+	go c.SendData(c.Config.GamesFilePath, &wg)
 
-	go c.SendData(c.config.ReviewsFilePath, &wg)
+	go c.SendData(c.Config.ReviewsFilePath, &wg)
 
 	wg.Wait()
 
 	log.Infof("All data sent to server. Exiting")
 
-	common.Send("END\n", c.conn)
+	common.Send(common.END, c.Connection)
 }
 
 func (c *Client) OpenFile(path string) (*os.File, error) {
@@ -93,21 +94,41 @@ func (c *Client) SendData(path string, wg *sync.WaitGroup) {
 
 	defer file.Close()
 
+	var pathType string
+
+	if strings.Contains(path, "games") {
+		pathType = "1"
+	} else if strings.Contains(path, "reviews") {
+		pathType = "2"
+	}
+
 	reader := bufio.NewReader(file)
 
-	err = c.SendBatches(reader)
+	err = c.SendBatches(reader, pathType)
 	common.FailOnError(err, fmt.Sprintf("Failed to send data from file %s", path))
 }
 
-func (c *Client) SendBatches(reader *bufio.Reader) error {
+func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 	lastBatch := common.NewBatch()
+
+	// Ignore header
+	_, err := reader.ReadString('\n')
+
+	if err == io.EOF {
+		log.Criticalf("The file is empty")
+		return nil
+	}
+
+	common.FailOnError(err, "Failed to read header from file")
 
 	for {
 		line, err := reader.ReadString('\n')
 
+		line = pathType + "," + line
+
 		if err == io.EOF {
 			c.SendBatch(lastBatch)
-			time.Sleep(c.config.BatchSleep)
+			time.Sleep(c.Config.BatchSleep)
 			break
 		}
 
@@ -115,9 +136,9 @@ func (c *Client) SendBatches(reader *bufio.Reader) error {
 			return err
 		}
 
-		if !lastBatch.CanHandle(line, c.config.BatchMaxAmount) {
+		if !lastBatch.CanHandle(line, c.Config.BatchMaxAmount) {
 			c.SendBatch(lastBatch)
-			time.Sleep(c.config.BatchSleep)
+			time.Sleep(c.Config.BatchSleep)
 
 			lastBatch = common.NewBatch()
 		}
@@ -135,5 +156,5 @@ func (c *Client) SendBatch(batch common.Batch) {
 
 	message := batch.Serialize()
 
-	common.Send(message, c.conn)
+	common.Send(message, c.Connection)
 }

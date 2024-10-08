@@ -18,12 +18,6 @@ type Exchange struct {
 	Arguments   []string
 }
 
-const (
-	ExchangeDirect = "direct"
-	ExchangeFanout = "fanout"
-	ExchangeTopic  = "topic"
-)
-
 func (e *Exchange) Declare() {
 	err := e.Channel.ExchangeDeclare(
 		e.Name,
@@ -39,7 +33,7 @@ func (e *Exchange) Declare() {
 	e.Context = NewContext()
 }
 
-func (e *Exchange) Publish(routingKey string, body []byte) { // TODO: body Serializable
+func (e *Exchange) Publish(routingKey string, body common.Serializable) {
 	err := e.Channel.PublishWithContext(e.Context.Context,
 		e.Name,
 		routingKey,
@@ -47,8 +41,14 @@ func (e *Exchange) Publish(routingKey string, body []byte) { // TODO: body Seria
 		false,
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        body, // TODO: body.Serialize(),
+			Body:        body.Serialize(),
 		},
 	)
 	common.FailOnError(err, "Failed to publish a message")
+
+	log.Debugf("Published message to exchange %s with routing key %s", e.Name, routingKey)
+}
+
+func (e *Exchange) Close() {
+	e.Context.Close()
 }

@@ -7,11 +7,6 @@ import (
 	"net"
 )
 
-const (
-	ACK = "ACK\n"
-	END = "END\n"
-)
-
 func Send(message string, conn net.Conn) {
 	messageBytes := []byte(message)
 
@@ -31,6 +26,8 @@ func Send(message string, conn net.Conn) {
 		FailOnError(err, "Failed to send bytes to server")
 		bytesSent += n
 	}
+
+	log.Debugf("Sent message via TCP: %s", message)
 }
 
 func Receive(conn net.Conn) string {
@@ -44,5 +41,19 @@ func Receive(conn net.Conn) string {
 	_, err = io.ReadFull(conn, message)
 	FailOnError(err, "Failed to read message")
 
+	log.Debugf("Received message via TCP: %s", message)
+
 	return string(message)
+}
+
+func GetRoutingKey(line string) string {
+	lineType := int(line[0] - '0')
+
+	if lineType == TypeGame {
+		return RoutingGames
+	} else if lineType == TypeReview {
+		return RoutingReviews
+	}
+
+	return RoutingProtocol
 }

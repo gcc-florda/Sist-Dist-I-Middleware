@@ -31,6 +31,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    links:
+      - rabbitmq
     volumes:
       - ./server/config.yaml:/app/config.yaml
 

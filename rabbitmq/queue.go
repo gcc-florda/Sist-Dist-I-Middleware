@@ -40,6 +40,8 @@ func (q *Queue) Bind(exchange *Exchange, routingKey string) {
 		nil,
 	)
 	common.FailOnError(err, "Failed to bind a queue")
+
+	log.Debugf("Bound queue %s to exchange %s with routing key %s", q.Name, exchange.Name, routingKey)
 }
 
 func (q *Queue) Consume() <-chan amqp.Delivery {

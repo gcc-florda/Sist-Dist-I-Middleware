@@ -3,6 +3,8 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+
+	"github.com/google/uuid"
 )
 
 type Serializable interface {
@@ -48,6 +50,11 @@ func (s *Serializer) WriteUint8(n uint8) *Serializer {
 	return s
 }
 
+func (s *Serializer) WriteUUID(uuid uuid.UUID) *Serializer {
+	s.WriteBytes(uuid[:])
+	return s
+}
+
 func (s *Serializer) WriteBytes(b []byte) *Serializer {
 	s.buf.Write(b)
 	return s
@@ -60,10 +67,6 @@ func (s *Serializer) WriteBool(b bool) *Serializer {
 	return s.WriteUint8(0)
 }
 
-func (s *Serializer) ToBytes() []byte {
-	return s.buf.Bytes()
-}
-
 func (s *Serializer) WriteArray(serializables []Serializable) *Serializer {
 	l := uint32(len(serializables))
 	s.WriteUint32(l)
@@ -71,6 +74,10 @@ func (s *Serializer) WriteArray(serializables []Serializable) *Serializer {
 		s.WriteBytes(ser.Serialize())
 	}
 	return s
+}
+
+func (s *Serializer) ToBytes() []byte {
+	return s.buf.Bytes()
 }
 
 type Deserializer struct {
