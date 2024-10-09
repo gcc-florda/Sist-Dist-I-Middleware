@@ -27,19 +27,15 @@ func extractDecade(s string) (int, error) {
 }
 
 func Q3FilterGames(r *Game) bool {
-	common.Config.SetDefault("queries.3.categorie", "Indie")
-
 	decade, err := extractDecade(r.ReleaseDate)
 	if err != nil {
 		log.Error("Can't extract decade from: %s", r.ReleaseDate)
 		return false
 	}
-	return common.Contains(r.Categories, common.Config.GetString("queries.3.categorie")) && decade == 2010
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.3.category")) && decade == common.Config.GetInt("queries.3.decade")
 }
 
 func Q3FilterReviews(r *Review) bool {
-	common.Config.SetDefault("queries.3.positive", true)
-
 	if common.Config.GetBool("queries.3.positive") {
 		return r.ReviewScore > 0
 	}

@@ -8,8 +8,8 @@ import (
 	"sort"
 )
 
-func Q2Filter(r *Game, cat string) bool {
-	return common.Contains(r.Categories, cat)
+func Q2Filter(r *Game) bool {
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.2.category"))
 }
 
 func Q2Map(r *Game) *PlayedTime {

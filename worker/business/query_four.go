@@ -9,15 +9,18 @@ import (
 
 type DetectLanguage func(string) bool
 
-func Q4FilterGames(r *Game, cat string) bool {
-	return common.Contains(r.Categories, cat)
+func Q4FilterGames(r *Game) bool {
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.4.category"))
 }
 
-func Q4FilterReviews(r *Review, isLanguage DetectLanguage, pos bool) bool {
-	if pos {
-		return r.ReviewScore > 0 && isLanguage(r.ReviewText)
+func Q4FilterReviewsBuilder(isLanguage DetectLanguage) FilterReview {
+	return func(r *Review) bool {
+		if common.Config.GetBool("queries.4.positive") {
+			return r.ReviewScore > 0 && isLanguage(r.ReviewText)
+		}
+		return r.ReviewScore < 0 && isLanguage(r.ReviewText)
 	}
-	return r.ReviewScore < 0 && isLanguage(r.ReviewText)
+
 }
 
 func Q4MapGames(r *Game) *GameName {

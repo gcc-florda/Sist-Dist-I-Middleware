@@ -16,12 +16,12 @@ import (
 // Batch size in bytes (34MB)
 const maxBatchSize = 34 * 1024 * 1024
 
-func Q5FilterGames(r *Game, cat string) bool {
-	return common.Contains(r.Categories, cat)
+func Q5FilterGames(r *Game) bool {
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.5.category"))
 }
 
-func Q5FilterReviews(r *Review, pos bool) bool {
-	if pos {
+func Q5FilterReviews(r *Review) bool {
+	if common.Config.GetBool("queries.5.positive") {
 		return r.ReviewScore > 0
 	}
 	return r.ReviewScore < 0
