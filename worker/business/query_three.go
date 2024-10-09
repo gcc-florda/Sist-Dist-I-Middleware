@@ -42,14 +42,14 @@ func Q3FilterReviews(r *Review) bool {
 	return r.ReviewScore < 0
 }
 
-func Q3MapGames(r *Game) *GameName {
+func Q3MapGames(r *Game) controller.Partitionable {
 	return &GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q3MapReviews(r *Review) *ValidReview {
+func Q3MapReviews(r *Review) controller.Partitionable {
 	return &ValidReview{
 		AppID: r.AppID,
 	}

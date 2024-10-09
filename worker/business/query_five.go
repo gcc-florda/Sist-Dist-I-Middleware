@@ -27,14 +27,14 @@ func Q5FilterReviews(r *Review) bool {
 	return r.ReviewScore < 0
 }
 
-func Q5MapGames(r *Game) *GameName {
+func Q5MapGames(r *Game) controller.Partitionable {
 	return &GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q5MapReviews(r *Review) *ValidReview {
+func Q5MapReviews(r *Review) controller.Partitionable {
 	return &ValidReview{
 		AppID: r.AppID,
 	}

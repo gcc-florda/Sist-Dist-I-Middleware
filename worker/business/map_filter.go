@@ -12,16 +12,19 @@ type FilterReview func(*Review) bool
 type MapReview func(*Review) controller.Partitionable
 
 type MapFilterGames struct {
-	filter FilterGame
-	mapper MapGame
+	Filter FilterGame
+	Mapper MapGame
 }
 
 func (mf *MapFilterGames) Do(g *Game) (controller.Partitionable, error) {
-	ok := mf.filter(g)
+	if mf.Filter != nil {
+		return mf.Mapper(g), nil
+	}
+	ok := mf.Filter(g)
 	if !ok {
 		return nil, nil
 	}
-	return mf.mapper(g), nil
+	return mf.Mapper(g), nil
 }
 
 func (mf *MapFilterGames) Handle(protocolData []byte) (controller.Partitionable, error) {

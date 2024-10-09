@@ -45,7 +45,7 @@ func (h *HandlerRuntime) Start() {
 			if err != nil {
 				msg.Delivery.Nack(false, true)
 			}
-			h.validateEOF.Update(eof.TokenName)
+			h.eofs.Update(eof.TokenName)
 			msg.Delivery.Ack(false)
 		}
 

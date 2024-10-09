@@ -23,14 +23,14 @@ func Q4FilterReviewsBuilder(isLanguage DetectLanguage) FilterReview {
 
 }
 
-func Q4MapGames(r *Game) *GameName {
+func Q4MapGames(r *Game) controller.Partitionable {
 	return &GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q4MapReviews(r *Review) *ValidReview {
+func Q4MapReviews(r *Review) controller.Partitionable {
 	return &ValidReview{
 		AppID: r.AppID,
 	}

@@ -106,7 +106,7 @@ func (p *PlayedTime) Serialize() []byte {
 	return se.WriteFloat64(p.AveragePlaytimeForever).WriteString(p.Name).ToBytes()
 }
 
-func (p *PlayedTime) PlayedTime() string {
+func (p *PlayedTime) PartitionKey() string {
 	return p.Name
 }
 

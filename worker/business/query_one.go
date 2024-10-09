@@ -7,7 +7,7 @@ import (
 	"reflect"
 )
 
-func Q1Map(r *Game) *SOCounter {
+func Q1Map(r *Game) controller.Partitionable {
 	return &SOCounter{
 		Windows: boolToCounter(r.Windows),
 		Linux:   boolToCounter(r.Linux),

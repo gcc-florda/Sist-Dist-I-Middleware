@@ -21,7 +21,6 @@ type HandlerFactory func(job common.JobID) (Handler, EOFValidator, error)
 
 type EOFValidator interface {
 	Finish(receivedEOFs map[enums.TokenName]uint) (*EOFMessage, bool)
-	Update(enums.TokenName)
 }
 type Handler interface {
 	Handle(protocolData []byte) (Partitionable, error)

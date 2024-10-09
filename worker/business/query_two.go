@@ -12,7 +12,7 @@ func Q2Filter(r *Game) bool {
 	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.2.category"))
 }
 
-func Q2Map(r *Game) *PlayedTime {
+func Q2Map(r *Game) controller.Partitionable {
 	return &PlayedTime{
 		AveragePlaytimeForever: r.AveragePlaytimeForever,
 		Name:                   r.Name,
