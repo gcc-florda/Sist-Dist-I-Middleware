@@ -86,7 +86,19 @@ func (s *Server) HandleConnection(client *Client) {
 			break
 		}
 
-		s.Rabbit.Publish(common.ExchangeNameRawData, common.GetRoutingKey(message), common.NewMessage(client.Id, message))
+		rk := common.GetRoutingKey(message)
+
+		mb := []byte(message[2:])
+		send := make([]byte, len(mb)+1)
+		copy(send[1:], mb)
+
+		if rk == common.RoutingGames {
+			send[0] = common.Type_Game
+		} else if rk == common.RoutingReviews {
+			send[0] = common.Type_Review
+		}
+
+		s.Rabbit.Publish(common.ExchangeNameRawData, rk, common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
 	}
 }
 

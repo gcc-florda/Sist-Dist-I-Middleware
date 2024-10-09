@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 )
 
@@ -23,8 +24,13 @@ func (m *ClosedFileError) Error() string {
 	return fmt.Sprintf("The file %s was already closed. This can be due to manual Close() call or due to a SYSCALL received", m.filepath)
 }
 
-func NewTemporaryStorage(path string, cache bool) (*TemporaryStorage, error) {
-	f, err := os.Open(path)
+func NewTemporaryStorage(path string) (*TemporaryStorage, error) {
+	dir := filepath.Dir(path)
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +84,10 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 		}
 	}
 	return t.file.Write(data)
+}
+
+func (t *TemporaryStorage) AppendLine(data []byte) (int, error) {
+	return t.Append(append(data, '\n'))
 }
 
 func (t *TemporaryStorage) Reset() {

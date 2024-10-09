@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+var Config *viper.Viper
+
 func InitConfig(path string) (*viper.Viper, error) {
 	v := viper.New()
 
@@ -17,6 +19,7 @@ func InitConfig(path string) (*viper.Viper, error) {
 		log.Fatalf("Configuration couldn't be read from config file. %s", err)
 	}
 
+	Config = v
 	return v, nil
 }
 
