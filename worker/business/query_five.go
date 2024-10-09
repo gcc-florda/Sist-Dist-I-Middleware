@@ -106,10 +106,10 @@ func SortBatch(batch *NamedReviewBatch, base string, jobId string) (*common.Temp
 func Q5PartialSort(batch *NamedReviewBatch, batchTempFile *common.TemporaryStorage) error {
 	h := NewHeap()
 
-	for i, review := range batch.Reviews {
+	for _, review := range batch.Reviews {
 		heap.Push(h, ReviewWithSource{
 			Review: *review,
-			Index:  i,
+			Index:  0, // unused here
 		})
 	}
 
