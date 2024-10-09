@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
-	"io"
 	"log"
 	"middleware/common"
-	"sort"
 
 	"path/filepath"
 	"reflect"
@@ -106,12 +104,18 @@ func SortBatch(batch *NamedReviewBatch, base string, jobId string) (*common.Temp
 }
 
 func Q5PartialSort(batch *NamedReviewBatch, batchTempFile *common.TemporaryStorage) error {
-	sort.Slice(batch.Reviews, func(i, j int) bool {
-		return batch.Reviews[i].Count < batch.Reviews[j].Count
-	})
+	h := NewHeap()
 
-	for _, review := range batch.Reviews {
-		_, err := batchTempFile.AppendLine(review.Serialize())
+	for i, review := range batch.Reviews {
+		heap.Push(h, ReviewWithSource{
+			Review: *review,
+			Index:  i,
+		})
+	}
+
+	for h.Len() > 0 {
+		minReview := heap.Pop(h).(ReviewWithSource)
+		_, err := batchTempFile.AppendLine(minReview.Review.Serialize())
 		if err != nil {
 			return err
 		}
@@ -136,14 +140,12 @@ func OpenAll(tempSortedFiles []*common.TemporaryStorage) ([]*bufio.Scanner, erro
 func PushHeapAtIdx(h *MinHeap, reader *bufio.Scanner, idx int) error {
 	if reader.Scan() {
 		d := common.NewDeserializer(reader.Bytes())
-		review, err := NamedReviewCounterDeserialize(&d)
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
+		nrc, err := NamedReviewCounterDeserialize(&d)
+		if err != nil {
 			return err
 		}
 		heap.Push(h, ReviewWithSource{
-			Review: *review,
+			Review: *nrc,
 			Index:  idx,
 		})
 	}
@@ -159,7 +161,10 @@ func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.
 	h := NewHeap()
 
 	for i, reader := range readers {
-		PushHeapAtIdx(h, reader, i) // initialize the heap with the first element of every temp batch file
+		err = PushHeapAtIdx(h, reader, i) // initialize the heap with the first element of every temp batch file
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	reviewsLen := h.Len()
@@ -167,14 +172,17 @@ func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.
 	for h.Len() > 0 {
 		min := heap.Pop(h).(ReviewWithSource)
 
-		_, err := sortedFile.AppendLine(min.Review.Serialize())
-		if err != nil {
+		bytesWritten, err := sortedFile.AppendLine(min.Review.Serialize())
+		if err != nil || bytesWritten == 0 {
 			return 0, err
 		}
 
 		reviewsLen++
 
-		PushHeapAtIdx(h, readers[min.Index], min.Index)
+		err = PushHeapAtIdx(h, readers[min.Index], min.Index)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	return reviewsLen, nil

@@ -10,9 +10,9 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-func FatalOnError(err error, t *testing.T) {
+func FatalOnError(err error, t *testing.T, message string) {
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("%s: %s", message, err)
 	}
 }
 
@@ -30,9 +30,38 @@ func CreateRandomBatch(n int, idx int) *business.NamedReviewBatch {
 	return batch
 }
 
+func CreateRandomBatchSorted(n int, idx int) (*business.NamedReviewBatch, *common.TemporaryStorage, error) {
+	batch := business.NewNamedReviewBatch("temp", "99", idx)
+
+	for i := 0; i < n; i++ {
+		count := uint32(rand.Intn(1000))
+		batch.Add(&business.NamedReviewCounter{
+			Name:  fmt.Sprintf("[%d] - Game N° %d - %d", idx, i, count),
+			Count: count,
+		})
+	}
+
+	file, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+	if err != nil {
+		return nil, nil, err
+	}
+	file.Overwrite([]byte{})
+
+	err = business.Q5PartialSort(batch, file)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	file.Reset()
+
+	return batch, file, nil
+}
+
 func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
+	file.Reset()
+
 	scanner, err := file.Scanner()
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create scanner")
 
 	lastReviewCount := -1
 
@@ -41,7 +70,7 @@ func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 
 		d := common.NewDeserializer(line)
 		lineDes, err := business.NamedReviewCounterDeserialize(&d)
-		FatalOnError(err, t)
+		FatalOnError(err, t, fmt.Sprintf("Cannot deserialize review: %s", line))
 
 		if lastReviewCount == -1 {
 			lastReviewCount = int(lineDes.Count)
@@ -54,7 +83,7 @@ func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 }
 func TestQ5Insert(t *testing.T) {
 	q5, err := business.NewQ5("temp", "99", 90, 10)
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create Q5")
 
 	q5.Storage.Overwrite([]byte{})
 
@@ -66,14 +95,14 @@ func TestQ5Insert(t *testing.T) {
 	q5.Insert(&game)
 
 	scanner, err := q5.Storage.Scanner()
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create scanner")
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
 
 		d := common.NewDeserializer(line)
 		lineDes, err := business.NamedReviewCounterDeserialize(&d)
-		FatalOnError(err, t)
+		FatalOnError(err, t, "Cannot deserialize review")
 
 		if lineDes.Name != game.Name || lineDes.Count != game.Count {
 			t.Fatalf("Expected %v, got %v", game, lineDes)
@@ -97,37 +126,37 @@ func TestQ5PartialSort(t *testing.T) {
 	batch := CreateRandomBatch(100, 0)
 
 	tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create temporary storage")
 	tempFile.Overwrite([]byte{})
 
 	err = business.Q5PartialSort(batch, tempFile)
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot sort batch")
 
 	CheckSortedFile(t, tempFile)
 }
 
-func TestQ5PushAtIdx(t *testing.T) {
+func TestQ5PushAtIdx1Row(t *testing.T) {
 	h := business.NewHeap()
 
 	batch := CreateRandomBatch(100, 0)
 
 	tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create temporary storage")
 	tempFile.Overwrite([]byte{})
 
 	err = business.Q5PartialSort(batch, tempFile)
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot sort batch")
 
 	tempFile.Reset()
 
 	reader, err := tempFile.Scanner()
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create scanner")
 
 	business.PushHeapAtIdx(h, reader, 0)
 
 	d := common.NewDeserializer(reader.Bytes())
 	firstRow, err := business.NamedReviewCounterDeserialize(&d)
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot deserialize review")
 
 	t.Logf("First row: %v", firstRow)
 
@@ -145,31 +174,65 @@ func TestQ5PushAtIdx(t *testing.T) {
 	}
 }
 
+func TestQ5PushAtIdxEntireFile(t *testing.T) {
+	N := 10
+
+	h := business.NewHeap()
+
+	batch, file, err := CreateRandomBatchSorted(N, 0)
+	FatalOnError(err, t, "Cannot create batch sorted")
+
+	reader, err := file.Scanner()
+	FatalOnError(err, t, "Cannot create scanner")
+
+	file.Reset()
+	for i := 0; i < batch.Size; i++ {
+		business.PushHeapAtIdx(h, reader, i)
+	}
+
+	if h.Len() != batch.Size {
+		t.Fatalf("Expected heap length %d, got %d", batch.Size, h.Len())
+	} else {
+		t.Log("Heap pushed correctly")
+	}
+
+	lastCount := -1
+	for i := 0; i < batch.Size; i++ {
+		min := h.Pop().(business.ReviewWithSource)
+
+		if lastCount == -1 {
+			lastCount = int(min.Review.Count)
+		} else if int(min.Review.Count) < lastCount {
+			t.Fatalf("Expected increasing order, got %d but last was %d", min.Review.Count, lastCount)
+		}
+	}
+}
+
 func TestQ5MergeSort(t *testing.T) {
 	reviewsLen := 0
 
 	tempSortedFiles := []*common.TemporaryStorage{}
 
 	for i := 0; i < 10; i++ {
-		batch := CreateRandomBatch(100, i)
+		batch := CreateRandomBatch(100000, i)
 		reviewsLen += batch.Size
 
 		tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
-		FatalOnError(err, t)
+		FatalOnError(err, t, "Cannot create temporary storage")
 		tempFile.Overwrite([]byte{})
 
 		err = business.Q5PartialSort(batch, tempFile)
-		FatalOnError(err, t)
+		FatalOnError(err, t, "Cannot sort batch")
 
 		tempSortedFiles = append(tempSortedFiles, tempFile)
 	}
 
 	sortedFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", "merge_sort"))
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create temporary storage")
 	sortedFile.Overwrite([]byte{})
 
 	reviewsLenResult, err := business.Q5MergeSort(sortedFile, tempSortedFiles)
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot merge batches")
 
 	if reviewsLen != reviewsLenResult {
 		t.Fatalf("Expected %d reviews, got %d", reviewsLen, reviewsLenResult)
@@ -182,7 +245,7 @@ func TestQ5MergeSort(t *testing.T) {
 
 func TestQ5CalculateP90(t *testing.T) {
 	q5, err := business.NewQ5("temp", "99", 90, 10)
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot create Q5")
 
 	q5.Storage.Overwrite([]byte{})
 
@@ -194,7 +257,7 @@ func TestQ5CalculateP90(t *testing.T) {
 	}
 
 	idx, err := q5.Q5Quantile()
-	FatalOnError(err, t)
+	FatalOnError(err, t, "Cannot calculate P90")
 
 	if idx != 90 {
 		t.Fatalf("Expected index 90, got %d", idx)
