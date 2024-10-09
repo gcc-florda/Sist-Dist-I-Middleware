@@ -2,6 +2,7 @@ package business
 
 import (
 	"middleware/common"
+	"middleware/worker/controller"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -117,15 +118,15 @@ func (q *Q2) NextStage() (<-chan *PlayedTime, <-chan error) {
 	return ch, ce
 }
 
-func (q *Q2) Handle(protocolData []byte) error {
+func (q *Q2) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&PlayedTime{}) {
-		return q.Insert(p.(*PlayedTime))
+		return nil, q.Insert(p.(*PlayedTime))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q2) Shutdown() {

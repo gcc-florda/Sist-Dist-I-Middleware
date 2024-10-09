@@ -8,19 +8,6 @@ import (
 	"strings"
 )
 
-type MessageType = uint8
-
-const (
-	Type_Game MessageType = iota
-	Type_Review
-	Type_SOCounter
-	Type_PlayedTime
-	Type_GameName
-	Type_ValidReview
-	Type_ReviewCounter
-	Type_NamedReviewCounter
-)
-
 type Game struct {
 	AppID                   string
 	Name                    string
@@ -320,17 +307,17 @@ func MarshalMessage(c any) ([]byte, error) {
 	s := common.NewSerializer()
 	switch v := c.(type) {
 	case SOCounter:
-		return s.WriteUint8(Type_SOCounter).WriteBytes(v.Serialize()).ToBytes(), nil
+		return s.WriteUint8(common.Type_SOCounter).WriteBytes(v.Serialize()).ToBytes(), nil
 	case PlayedTime:
-		return s.WriteUint8(Type_PlayedTime).WriteBytes(v.Serialize()).ToBytes(), nil
+		return s.WriteUint8(common.Type_PlayedTime).WriteBytes(v.Serialize()).ToBytes(), nil
 	case GameName:
-		return s.WriteUint8(Type_GameName).WriteBytes(v.Serialize()).ToBytes(), nil
+		return s.WriteUint8(common.Type_GameName).WriteBytes(v.Serialize()).ToBytes(), nil
 	case ValidReview:
-		return s.WriteUint8(Type_ValidReview).WriteBytes(v.Serialize()).ToBytes(), nil
+		return s.WriteUint8(common.Type_ValidReview).WriteBytes(v.Serialize()).ToBytes(), nil
 	case ReviewCounter:
-		return s.WriteUint8(Type_ReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
+		return s.WriteUint8(common.Type_ReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
 	case NamedReviewCounter:
-		return s.WriteUint8(Type_NamedReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
+		return s.WriteUint8(common.Type_NamedReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
 	}
 	return nil, &UnknownTypeError{}
 }
@@ -347,29 +334,29 @@ func UnmarshalMessageDeserializer(d *common.Deserializer) (any, error) {
 	}
 
 	switch t {
-	case Type_Game:
+	case common.Type_Game:
 		s, err := d.ReadString()
 		if err != nil {
 			return nil, err
 		}
 		return StrParse[Game](s)
-	case Type_Review:
+	case common.Type_Review:
 		s, err := d.ReadString()
 		if err != nil {
 			return nil, err
 		}
 		return StrParse[Review](s)
-	case Type_SOCounter:
+	case common.Type_SOCounter:
 		return SOCounterDeserialize(d)
-	case Type_PlayedTime:
+	case common.Type_PlayedTime:
 		return PlayedTimeDeserialize(d)
-	case Type_GameName:
+	case common.Type_GameName:
 		return GameNameDeserialize(d)
-	case Type_ValidReview:
+	case common.Type_ValidReview:
 		return ValidReviewDeserialize(d)
-	case Type_ReviewCounter:
+	case common.Type_ReviewCounter:
 		return ReviewCounterDeserialize(d)
-	case Type_NamedReviewCounter:
+	case common.Type_NamedReviewCounter:
 		return NamedReviewCounterDeserialize(d)
 	}
 	return nil, &UnknownTypeError{}

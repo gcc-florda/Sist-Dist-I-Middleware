@@ -2,6 +2,7 @@ package business
 
 import (
 	"middleware/common"
+	"middleware/worker/controller"
 	"path/filepath"
 	"reflect"
 )
@@ -104,15 +105,15 @@ func (q *Q4) NextStage() (chan *NamedReviewCounter, chan error) {
 	return cr, ce
 }
 
-func (q *Q4) Handle(protocolData []byte) error {
+func (q *Q4) Handle(protocolData []byte) (*controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return q.Insert(p.(*NamedReviewCounter))
+		return nil, q.Insert(p.(*NamedReviewCounter))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q4) Shutdown() {

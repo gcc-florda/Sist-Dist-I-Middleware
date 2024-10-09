@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"hash/fnv"
 	"middleware/common"
 	"strconv"
@@ -12,64 +11,21 @@ const (
 	ProtocolMessage_Control
 )
 
-type ProtocolMessage struct {
-	jobID JobID
-	t     uint8
-	data  []byte
-}
-
-func (pm *ProtocolMessage) Serialize() []byte {
-	s := common.NewSerializer()
-	return s.WriteString(pm.jobID).WriteBytes(pm.data).ToBytes()
-}
-
-func (pm *ProtocolMessage) JobID() JobID {
-	return pm.jobID
-}
-
-func (pm *ProtocolMessage) IsEOF() bool {
-	return pm.t == ProtocolMessage_Control
-}
-
-func (pm *ProtocolMessage) Data() []byte {
-	return pm.data
-}
-
 type NodeProtocol struct {
 	PartitionAmount uint
 }
 
 func (p *NodeProtocol) Unmarshal(rawData []byte) (DataMessage, error) {
-	d := common.NewDeserializer(rawData)
-	jobId, err := d.ReadString()
-	if err != nil {
-		return nil, err
-	}
-	t, err := d.ReadUint8()
-	if err != nil {
-		return nil, err
-	}
-	if t == ProtocolMessage_Data || t == ProtocolMessage_Control {
-		return &ProtocolMessage{
-			jobID: jobId,
-			t:     ProtocolMessage_Data,
-			data:  rawData[len(rawData)-d.Buf.Len():],
-		}, nil
-	}
-	return nil, errors.New("the read message from the protocol is not of a known type")
+	return common.MessageFromBytes(rawData)
 }
 
-func (p *NodeProtocol) Marshal(j JobID, d common.Serializable) (common.Serializable, error) {
+func (p *NodeProtocol) Marshal(j common.JobID, d common.Serializable) (common.Serializable, error) {
 	t := ProtocolMessage_Data
 	if IsEOF(d) {
 		t = ProtocolMessage_Control
 	}
 	data := d.Serialize()
-	return &ProtocolMessage{
-		jobID: j,
-		t:     t,
-		data:  data,
-	}, nil
+	return common.NewMessage(j, t, data), nil
 }
 
 func (p *NodeProtocol) Route(partitionKey string) (routingKey string) {

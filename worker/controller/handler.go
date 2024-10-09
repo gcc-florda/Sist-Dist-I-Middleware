@@ -3,17 +3,17 @@ package controller
 import "middleware/common"
 
 type HandlerRuntime struct {
-	jobId        JobID
+	jobId        common.JobID
 	toController chan *messageToSend
 	handler      Handler
 	validateEOF  EOFValidator
 	forJob       chan *messageFromQueue
-	housekeeping chan JobID
+	housekeeping chan common.JobID
 	eofs         *EOFState
 }
 
-func NewHandlerRuntime(j JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan JobID) (*HandlerRuntime, error) {
-	eof, err := NewEOFState(common.Config.GetString("storage.path"), j)
+func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan common.JobID) (*HandlerRuntime, error) {
+	eof, err := NewEOFState(common.Config.GetString("storage.path"), j.String())
 	if err != nil {
 		return nil, err
 	}

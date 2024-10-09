@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
-	"log"
 	"middleware/common"
+	"middleware/worker/controller"
 	"os"
 	"sort"
 
@@ -80,7 +80,7 @@ func (q *Q5) Q5Quantile() error {
 	index := CalculatePercentile(reviewsLen, q.state.PercentileOver)
 	common.FailOnError(err, "Cannot calculate percentile")
 
-	log.Printf("Percentile %d: %d\n", q.state.PercentileOver, index)
+	log.Infof("Percentile %d: %d\n", q.state.PercentileOver, index)
 
 	return nil
 }
@@ -257,15 +257,15 @@ func (q *Q5) NextStage() (chan *NamedReviewCounter, chan error) {
 	return cr, ce
 }
 
-func (q *Q5) Handle(protocolData []byte) error {
+func (q *Q5) Handle(protocolData []byte) (*controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return q.Insert(p.(*NamedReviewCounter))
+		return nil, q.Insert(p.(*NamedReviewCounter))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q5) Shutdown() {

@@ -2,17 +2,45 @@ package business
 
 import (
 	"middleware/common"
+	"middleware/worker/controller"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"time"
+
+	"github.com/op/go-logging"
 )
 
-func Q3FilterGames(r *Game, cat string) bool {
-	return common.Contains(r.Categories, cat)
+var log = logging.MustGetLogger("log")
+
+func extractDecade(s string) (int, error) {
+	parsedDate, err := time.Parse("Jan 2, 2006", s)
+	if err != nil {
+		return 0, nil
+	}
+
+	// Extract the year
+	year := parsedDate.Year()
+
+	// Calculate the decade
+	return year / 10 * 10, nil
 }
 
-func Q3FilterReviews(r *Review, pos bool) bool {
-	if pos {
+func Q3FilterGames(r *Game) bool {
+	common.Config.SetDefault("queries.3.categorie", "Indie")
+
+	decade, err := extractDecade(r.ReleaseDate)
+	if err != nil {
+		log.Error("Can't extract decade from: %s", r.ReleaseDate)
+		return false
+	}
+	return common.Contains(r.Categories, common.Config.GetString("queries.3.categorie")) && decade == 2010
+}
+
+func Q3FilterReviews(r *Review) bool {
+	common.Config.SetDefault("queries.3.positive", true)
+
+	if common.Config.GetBool("queries.3.positive") {
 		return r.ReviewScore > 0
 	}
 	return r.ReviewScore < 0
@@ -123,15 +151,15 @@ func (q *Q3) NextStage() (<-chan *NamedReviewCounter, <-chan error) {
 	return ch, ce
 }
 
-func (q *Q3) Handle(protocolData []byte) error {
+func (q *Q3) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return q.Insert(p.(*NamedReviewCounter))
+		return nil, q.Insert(p.(*NamedReviewCounter))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q3) Shutdown() {

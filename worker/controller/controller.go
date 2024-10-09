@@ -17,9 +17,7 @@ const (
 	Routing_Unicast
 )
 
-type JobID = string
-
-type HandlerFactory func(job JobID) (Handler, EOFValidator, error)
+type HandlerFactory func(job common.JobID) (Handler, EOFValidator, error)
 
 type EOFValidator interface {
 	Finish(receivedEOFs map[enums.TokenName]uint) (*EOFMessage, bool)
@@ -38,13 +36,13 @@ type Partitionable interface {
 
 type Protocol interface {
 	Unmarshal(rawData []byte) (DataMessage, error)
-	Marshal(JobID, common.Serializable) (common.Serializable, error)
+	Marshal(common.JobID, common.Serializable) (common.Serializable, error)
 	Route(partitionKey string) (routingKey string)
 	Broadcast() (routes []string)
 }
 
 type DataMessage interface {
-	JobID() JobID
+	JobID() common.JobID
 	IsEOF() bool
 	Data() []byte
 }
@@ -56,7 +54,7 @@ type routing struct {
 
 type messageToSend struct {
 	Routing routing
-	JobID   JobID
+	JobID   common.JobID
 	Body    common.Serializable
 }
 
@@ -71,14 +69,14 @@ type Controller struct {
 	handlerChan  chan *messageToSend
 	protocol     Protocol
 	factory      HandlerFactory
-	handlers     map[JobID]*HandlerRuntime
-	housekeeping chan JobID
+	handlers     map[common.JobID]*HandlerRuntime
+	housekeeping chan common.JobID
 }
 
 func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
 
 	mts := make(chan *messageToSend, common.Config.GetInt("controllers.bufferSize.toSend"))
-	h := make(chan JobID, common.Config.GetInt("controllers.bufferSize.deadHandlers"))
+	h := make(chan common.JobID, common.Config.GetInt("controllers.bufferSize.deadHandlers"))
 
 	return &Controller{
 		rcvFrom:      from,
@@ -86,12 +84,12 @@ func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Pro
 		protocol:     protocol,
 		handlerChan:  mts,
 		factory:      handlerF,
-		handlers:     make(map[JobID]*HandlerRuntime),
+		handlers:     make(map[common.JobID]*HandlerRuntime),
 		housekeeping: h,
 	}
 }
 
-func (q *Controller) getHandler(j JobID) (*HandlerRuntime, error) {
+func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 	v, ok := q.handlers[j]
 	if !ok {
 		v, eof, err := q.factory(j)
@@ -113,7 +111,7 @@ func (q *Controller) getHandler(j JobID) (*HandlerRuntime, error) {
 	return v, nil
 }
 
-func (q *Controller) removeHandler(j JobID) {
+func (q *Controller) removeHandler(j common.JobID) {
 	delete(q.handlers, j)
 }
 
