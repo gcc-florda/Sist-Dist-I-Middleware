@@ -19,16 +19,39 @@ func FatalOnError(err error, t *testing.T) {
 func CreateRandomBatch(n int, idx int) *business.NamedReviewBatch {
 	batch := business.NewNamedReviewBatch("temp", "99", idx)
 
-	for i := n; i > 0; i-- {
+	for i := 0; i < n; i++ {
+		count := uint32(rand.Intn(1000))
 		batch.Add(&business.NamedReviewCounter{
-			Name:  fmt.Sprintf("Game N° %d", i),
-			Count: uint32(rand.Intn(1000)),
+			Name:  fmt.Sprintf("[%d] - Game N° %d - %d", idx, i, count),
+			Count: count,
 		})
 	}
 
 	return batch
 }
 
+func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
+	scanner, err := file.Scanner()
+	FatalOnError(err, t)
+
+	lastReviewCount := -1
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+
+		d := common.NewDeserializer(line)
+		lineDes, err := business.NamedReviewCounterDeserialize(&d)
+		FatalOnError(err, t)
+
+		if lastReviewCount == -1 {
+			lastReviewCount = int(lineDes.Count)
+		} else if int(lineDes.Count) < lastReviewCount {
+			t.Fatalf("Expected increasing order, got %d", lineDes.Count)
+		}
+	}
+
+	t.Log("File sorted correctly")
+}
 func TestQ5Insert(t *testing.T) {
 	q5, err := business.NewQ5("temp", "99", 90, 10)
 	FatalOnError(err, t)
@@ -70,39 +93,56 @@ func TestQ5CalculatePi(t *testing.T) {
 	}
 }
 
-func CheckSortedFile(t *testing.T, tempFile *common.TemporaryStorage) {
-	scanner, err := tempFile.Scanner()
-	FatalOnError(err, t)
-
-	lastReviewCount := -1
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-
-		d := common.NewDeserializer(line)
-		lineDes, err := business.NamedReviewCounterDeserialize(&d)
-		FatalOnError(err, t)
-
-		if lastReviewCount == -1 {
-			lastReviewCount = int(lineDes.Count)
-		} else if int(lineDes.Count) < lastReviewCount {
-			t.Fatalf("Expected increasing order, got %d", lineDes.Count)
-		}
-	}
-
-	t.Log("File sorted correctly")
-}
-
 func TestQ5PartialSort(t *testing.T) {
 	batch := CreateRandomBatch(100, 0)
 
 	tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
 	FatalOnError(err, t)
+	tempFile.Overwrite([]byte{})
 
 	err = business.Q5PartialSort(batch, tempFile)
 	FatalOnError(err, t)
 
 	CheckSortedFile(t, tempFile)
+}
+
+func TestQ5PushAtIdx(t *testing.T) {
+	h := business.NewHeap()
+
+	batch := CreateRandomBatch(100, 0)
+
+	tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+	FatalOnError(err, t)
+	tempFile.Overwrite([]byte{})
+
+	err = business.Q5PartialSort(batch, tempFile)
+	FatalOnError(err, t)
+
+	tempFile.Reset()
+
+	reader, err := tempFile.Scanner()
+	FatalOnError(err, t)
+
+	business.PushHeapAtIdx(h, reader, 0)
+
+	d := common.NewDeserializer(reader.Bytes())
+	firstRow, err := business.NamedReviewCounterDeserialize(&d)
+	FatalOnError(err, t)
+
+	t.Logf("First row: %v", firstRow)
+
+	if h.Len() != 1 {
+		t.Fatalf("Expected heap length 1, got %d", h.Len())
+	} else {
+		t.Log("Heap pushed correctly")
+	}
+
+	min := h.Pop().(business.ReviewWithSource)
+	if min.Review.Count != firstRow.Count {
+		t.Fatalf("Expected %d, got %d", firstRow.Count, min.Review.Count)
+	} else {
+		t.Log("Heap popped correctly")
+	}
 }
 
 func TestQ5MergeSort(t *testing.T) {
@@ -134,7 +174,7 @@ func TestQ5MergeSort(t *testing.T) {
 	if reviewsLen != reviewsLenResult {
 		t.Fatalf("Expected %d reviews, got %d", reviewsLen, reviewsLenResult)
 	} else {
-		t.Log("Merge sort done correctly")
+		t.Log("Merge sort done completed correctly")
 	}
 
 	CheckSortedFile(t, sortedFile)

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
+	"io"
 	"log"
 	"middleware/common"
 	"sort"
@@ -122,6 +123,7 @@ func Q5PartialSort(batch *NamedReviewBatch, batchTempFile *common.TemporaryStora
 func OpenAll(tempSortedFiles []*common.TemporaryStorage) ([]*bufio.Scanner, error) {
 	readers := make([]*bufio.Scanner, len(tempSortedFiles))
 	for i, tempFile := range tempSortedFiles {
+		tempFile.Reset()
 		scanner, err := tempFile.Scanner()
 		if err != nil {
 			return nil, err
@@ -131,16 +133,21 @@ func OpenAll(tempSortedFiles []*common.TemporaryStorage) ([]*bufio.Scanner, erro
 	return readers, nil
 }
 
-func PushHeapAtIdx(h *MinHeap, reader *bufio.Scanner, idx int) {
+func PushHeapAtIdx(h *MinHeap, reader *bufio.Scanner, idx int) error {
 	if reader.Scan() {
 		d := common.NewDeserializer(reader.Bytes())
 		review, err := NamedReviewCounterDeserialize(&d)
-		common.FailOnError(err, "Cannot deserialize review")
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
 		heap.Push(h, ReviewWithSource{
 			Review: *review,
 			Index:  idx,
 		})
 	}
+	return nil
 }
 
 func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.TemporaryStorage) (int, error) {
