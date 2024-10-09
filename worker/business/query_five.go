@@ -119,7 +119,6 @@ func Q5PartialSort(batch *Q5NamedReviewBatch) (*common.TemporaryStorage, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer batchTempFile.Close()
 
 	for _, review := range batch.Reviews {
 		batchTempFile.AppendLine(review.Serialize())
@@ -140,7 +139,6 @@ func Q5MergeSort(tempFiles []*common.TemporaryStorage, base string, jobId string
 			return nil, 0, err
 		}
 		readers[i] = scanner
-		defer tempFile.Close()
 	}
 
 	// Create the file where the final sorted data will be stored
