@@ -1,11 +1,19 @@
 package business
 
+import "container/heap"
+
 type ReviewWithSource struct {
 	Review NamedReviewCounter
 	Index  int
 }
 
 type MinHeap []ReviewWithSource
+
+func NewHeap() *MinHeap {
+	h := &MinHeap{}
+	heap.Init(h)
+	return h
+}
 
 func (h MinHeap) Len() int { return len(h) }
 

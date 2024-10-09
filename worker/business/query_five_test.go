@@ -4,13 +4,29 @@ import (
 	"fmt"
 	"middleware/common"
 	"middleware/worker/business"
+	"path/filepath"
 	"testing"
+
+	"golang.org/x/exp/rand"
 )
 
 func FatalOnError(err error, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func CreateRandomBatch(n int, idx int) *business.NamedReviewBatch {
+	batch := business.NewNamedReviewBatch("temp", "99", idx)
+
+	for i := n; i > 0; i-- {
+		batch.Add(&business.NamedReviewCounter{
+			Name:  fmt.Sprintf("Game N° %d", i),
+			Count: uint32(rand.Intn(1000)),
+		})
+	}
+
+	return batch
 }
 
 func TestQ5Insert(t *testing.T) {
@@ -54,19 +70,7 @@ func TestQ5CalculatePi(t *testing.T) {
 	}
 }
 
-func TestQ5PartialSort(t *testing.T) {
-	batch := business.NewNamedReviewBatch("temp", "99", 0)
-
-	for i := 100; i > 0; i-- {
-		batch.Add(&business.NamedReviewCounter{
-			Name:  fmt.Sprintf("Game N° %d", i),
-			Count: uint32(i),
-		})
-	}
-
-	tempFile, err := business.Q5PartialSort(batch)
-	FatalOnError(err, t)
-
+func CheckSortedFile(t *testing.T, tempFile *common.TemporaryStorage) {
 	scanner, err := tempFile.Scanner()
 	FatalOnError(err, t)
 
@@ -86,7 +90,54 @@ func TestQ5PartialSort(t *testing.T) {
 		}
 	}
 
-	t.Log("Partial sort done correctly")
+	t.Log("File sorted correctly")
+}
+
+func TestQ5PartialSort(t *testing.T) {
+	batch := CreateRandomBatch(100, 0)
+
+	tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+	FatalOnError(err, t)
+
+	err = business.Q5PartialSort(batch, tempFile)
+	FatalOnError(err, t)
+
+	CheckSortedFile(t, tempFile)
+}
+
+func TestQ5MergeSort(t *testing.T) {
+	reviewsLen := 0
+
+	tempSortedFiles := []*common.TemporaryStorage{}
+
+	for i := 0; i < 10; i++ {
+		batch := CreateRandomBatch(100, i)
+		reviewsLen += batch.Size
+
+		tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+		FatalOnError(err, t)
+		tempFile.Overwrite([]byte{})
+
+		err = business.Q5PartialSort(batch, tempFile)
+		FatalOnError(err, t)
+
+		tempSortedFiles = append(tempSortedFiles, tempFile)
+	}
+
+	sortedFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", "merge_sort"))
+	FatalOnError(err, t)
+	sortedFile.Overwrite([]byte{})
+
+	reviewsLenResult, err := business.Q5MergeSort(sortedFile, tempSortedFiles)
+	FatalOnError(err, t)
+
+	if reviewsLen != reviewsLenResult {
+		t.Fatalf("Expected %d reviews, got %d", reviewsLen, reviewsLenResult)
+	} else {
+		t.Log("Merge sort done correctly")
+	}
+
+	CheckSortedFile(t, sortedFile)
 }
 
 func TestQ5CalculateP90(t *testing.T) {
