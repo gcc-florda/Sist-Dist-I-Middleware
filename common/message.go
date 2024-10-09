@@ -15,21 +15,21 @@ const (
 
 type Message struct {
 	JobId   uuid.UUID
-	t       uint8
+	_type   uint8
 	Content []byte
 }
 
 func NewMessage(jobId uuid.UUID, t uint8, content []byte) *Message {
 	return &Message{
 		JobId:   jobId,
-		t:       t,
+		_type:   t,
 		Content: content,
 	}
 }
 
 func (m *Message) Serialize() []byte {
 	s := NewSerializer()
-	return s.WriteUUID(m.JobId).WriteUint8(m.t).WriteBytes(m.Content).ToBytes()
+	return s.WriteUUID(m.JobId).WriteUint8(m._type).WriteBytes(m.Content).ToBytes()
 }
 
 func MessageFromBytes(raw []byte) (*Message, error) {
@@ -41,7 +41,7 @@ func MessageFromBytes(raw []byte) (*Message, error) {
 
 	return &Message{
 		JobId:   id,
-		t:       t,
+		_type:   t,
 		Content: raw[len(raw)-d.Buf.Len():],
 	}, nil
 }
@@ -68,7 +68,7 @@ func (pm *Message) JobID() JobID {
 }
 
 func (pm *Message) IsEOF() bool {
-	return pm.t == ProtocolMessage_Control
+	return pm._type == ProtocolMessage_Control
 }
 
 func (pm *Message) Data() []byte {

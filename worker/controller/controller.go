@@ -56,6 +56,7 @@ type messageToSend struct {
 	Routing routing
 	JobID   common.JobID
 	Body    common.Serializable
+	Ack     *amqp.Delivery
 }
 
 type messageFromQueue struct {
@@ -143,9 +144,15 @@ func (q *Controller) Start() {
 			}
 			if mts.Routing.Type == Routing_Broadcast {
 				q.broadcast(m)
+				if mts.Ack != nil {
+					mts.Ack.Ack(false)
+				}
 			}
 			if mts.Routing.Type == Routing_Unicast {
 				q.publish(q.protocol.Route(mts.Routing.Key), m)
+				if mts.Ack != nil {
+					mts.Ack.Ack(false)
+				}
 			}
 		}
 	}()
