@@ -1,6 +1,7 @@
 package business_test
 
 import (
+	"middleware/common"
 	"middleware/worker/business"
 	"testing"
 )
@@ -45,5 +46,29 @@ func TestCSVMapping(t *testing.T) {
 
 	if g.ReviewScore != 1 {
 		t.Fatalf(`The gamereview votes was not properly parsed. %d`, g.ReviewVotes)
+	}
+}
+
+func TestNamedReviewCounterSerialize(t *testing.T) {
+	nrc := business.NamedReviewCounter{
+		Name:  "Game N° 1!",
+		Count: 1,
+	}
+
+	nrcSer := nrc.Serialize()
+
+	d := common.NewDeserializer(nrcSer)
+	nrcDes, err := business.NamedReviewCounterDeserialize(&d)
+
+	if err != nil {
+		t.Fatalf("Error while deserializing NamedReviewCounter")
+	}
+
+	if nrcDes.Name != nrc.Name {
+		t.Fatalf(`The game Name was not properly deserialized. %s`, nrcDes.Name)
+	}
+
+	if nrcDes.Count != nrc.Count {
+		t.Fatalf(`The game Count was not properly deserialized. %d`, nrcDes.Count)
 	}
 }

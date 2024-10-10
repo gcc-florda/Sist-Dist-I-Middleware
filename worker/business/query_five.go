@@ -7,11 +7,14 @@ import (
 	"middleware/common"
 	"middleware/worker/controller"
 	"os"
-	"sort"
 
 	"path/filepath"
 	"reflect"
+
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("log")
 
 // Batch size in bytes (34MB)
 const maxBatchSize = 34 * 1024 * 1024
@@ -40,12 +43,13 @@ func Q5MapReviews(r *Review) controller.Partitionable {
 	}
 }
 
-func (q *Q5) Q5Quantile() error {
-	batch := []*NamedReviewCounter{}
-	currentBatchSize := 0
-	var tempFiles []string
+func (q *Q5) Q5Quantile() (int, error) {
+	defer q.deleteTemp()
+	batch := NewNamedReviewBatch(q.Base, q.JobId, 0)
+	tempSortedFiles := make([]*common.TemporaryStorage, 0)
 
-	scanner, err := q.storage.Scanner()
+	scanner, err := q.Storage.Scanner()
+	q.Storage.Reset()
 	common.FailOnError(err, "Cannot create scanner")
 
 	for scanner.Scan() {
@@ -54,136 +58,154 @@ func (q *Q5) Q5Quantile() error {
 		d := common.NewDeserializer(line)
 		gameReview, err := NamedReviewCounterDeserialize(&d)
 		common.FailOnError(err, "Cannot deserialize review")
-		batch = append(batch, gameReview)
-		currentBatchSize += len(line)
 
-		if currentBatchSize >= maxBatchSize {
-			tempFile, err := ProcessAndStoreBatch(batch)
-			common.FailOnError(err, "Cannot process and store batch")
-			tempFiles = append(tempFiles, tempFile)
-
-			batch = []*NamedReviewCounter{}
-			currentBatchSize = 0
+		if !batch.CanHandle(gameReview) {
+			tempSortedFile, err := SortBatch(batch, q.Base, q.JobId)
+			if err != nil {
+				return 0, err
+			}
+			defer tempSortedFile.Close()
+			tempSortedFiles = append(tempSortedFiles, tempSortedFile)
+			batch = NewNamedReviewBatch(q.Base, q.JobId, batch.Index+1)
 		}
+		batch.Add(gameReview)
 	}
 
 	// Check if the last batch has any remaining elements
-	if len(batch) > 0 {
-		tempFile, err := ProcessAndStoreBatch(batch)
-		common.FailOnError(err, "Cannot process and store batch")
-		tempFiles = append(tempFiles, tempFile)
+	if batch.Size > 0 {
+		tempSortedFile, err := SortBatch(batch, q.Base, q.JobId)
+		if err != nil {
+			return 0, err
+		}
+		defer tempSortedFile.Close()
+		tempSortedFiles = append(tempSortedFiles, tempSortedFile)
 	}
 
-	_, reviewsLen, err := MergeBatches(tempFiles)
+	sortedFile, err := common.NewTemporaryStorage(filepath.Join(".", q.Base, "query_five", q.JobId, "results.sorted"))
+	common.FailOnError(err, "Cannot create temporary storage")
+	q.sortedStorage = sortedFile
+
+	reviewsLen, err := Q5MergeSort(sortedFile, tempSortedFiles)
 	common.FailOnError(err, "Cannot merge batches")
 
-	index := CalculatePercentile(reviewsLen, q.state.PercentileOver)
+	index := Q5CalculatePi(reviewsLen, q.state.PercentileOver)
 	common.FailOnError(err, "Cannot calculate percentile")
 
-	log.Infof("Percentile %d: %d\n", q.state.PercentileOver, index)
+	log.Debugf("Percentile %d: %d\n", q.state.PercentileOver, index)
+
+	return index, nil
+}
+
+func (q *Q5) deleteTemp() {
+	d := filepath.Join(".", q.Base, "query_five", q.JobId, "temp")
+	err := os.RemoveAll(d)
+	if err != nil {
+		log.Errorf("Failed to delete temp directory: %v", err)
+	}
+}
+
+func SortBatch(batch *NamedReviewBatch, base string, jobId string) (*common.TemporaryStorage, error) {
+	tempSortedFile, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_five", jobId, "temp", fmt.Sprintf("batch_%d", batch.Index)))
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = Q5PartialSort(batch, tempSortedFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return tempSortedFile, nil
+}
+
+func Q5PartialSort(batch *NamedReviewBatch, batchTempFile *common.TemporaryStorage) error {
+	h := NewHeap()
+
+	for _, review := range batch.Reviews {
+		heap.Push(h, ReviewWithSource{
+			Review: *review,
+			Index:  0, // unused here
+		})
+	}
+
+	for h.Len() > 0 {
+		minReview := heap.Pop(h).(ReviewWithSource)
+		_, err := batchTempFile.AppendLine(minReview.Review.Serialize())
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
 
-func ProcessAndStoreBatch(batch []*NamedReviewCounter) (string, error) {
-	sort.Slice(batch, func(i, j int) bool {
-		return batch[i].Count < batch[j].Count
-	})
-
-	tempFile, err := os.CreateTemp("", "batch_*.txt")
-	if err != nil {
-		return "", err
-	}
-	defer tempFile.Close()
-
-	writer := bufio.NewWriter(tempFile)
-	for _, review := range batch {
-		_, err := writer.WriteString(fmt.Sprintf("%s %d\n", review.Name, review.Count))
+func OpenAll(tempSortedFiles []*common.TemporaryStorage) ([]*bufio.Scanner, error) {
+	readers := make([]*bufio.Scanner, len(tempSortedFiles))
+	for i, tempFile := range tempSortedFiles {
+		tempFile.Reset()
+		scanner, err := tempFile.Scanner()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
+		readers[i] = scanner
 	}
-	writer.Flush()
-
-	return tempFile.Name(), nil
+	return readers, nil
 }
 
-func MergeBatches(tempFiles []string) (string, int, error) {
-	// Open all the temp batch files
-	readers := make([]*bufio.Scanner, len(tempFiles))
-	files := make([]*os.File, len(tempFiles))
-	for i, tempFile := range tempFiles {
-		file, err := os.Open(tempFile)
+func PushHeapAtIdx(h *MinHeap, reader *bufio.Scanner, idx int) error {
+	if reader.Scan() {
+		d := common.NewDeserializer(reader.Bytes())
+		nrc, err := NamedReviewCounterDeserialize(&d)
 		if err != nil {
-			return "", 0, err
+			return err
 		}
-		files[i] = file
-		readers[i] = bufio.NewScanner(file)
+		heap.Push(h, ReviewWithSource{
+			Review: *nrc,
+			Index:  idx,
+		})
 	}
+	return nil
+}
 
-	// Create the file where the final sorted data will be stored
-	outputFile, err := os.CreateTemp("", "final_sorted.txt")
+func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.TemporaryStorage) (int, error) {
+	readers, err := OpenAll(tempSortedFiles)
 	if err != nil {
-		return "", 0, err
+		return 0, err
 	}
-	defer outputFile.Close()
 
-	writer := bufio.NewWriter(outputFile)
+	h := NewHeap()
 
-	h := &MinHeap{}
-	heap.Init(h)
-
-	// Initialize the heap with the first line of every temp batch file
 	for i, reader := range readers {
-		if reader.Scan() {
-			d := common.NewDeserializer(reader.Bytes())
-			review, err := NamedReviewCounterDeserialize(&d)
-			common.FailOnError(err, "Cannot deserialize review")
-			heap.Push(h, ReviewWithSource{
-				Review: *review,
-				Index:  i,
-			})
+		err = PushHeapAtIdx(h, reader, i) // initialize the heap with the first element of every temp batch file
+		if err != nil {
+			return 0, err
 		}
 	}
 
-	reviewsLen := h.Len()
+	reviewsLen := 0
 
 	for h.Len() > 0 {
 		min := heap.Pop(h).(ReviewWithSource)
 
-		_, err := writer.WriteString(fmt.Sprintf("%s %d\n", min.Review.Name, min.Review.Count))
-		if err != nil {
-			return "", 0, err
+		bytesWritten, err := sortedFile.AppendLine(min.Review.Serialize())
+		if err != nil || bytesWritten == 0 {
+			return 0, err
 		}
 
 		reviewsLen++
 
-		// Read the next record from the file where the minimum came from
-		if readers[min.Index].Scan() {
-			d := common.NewDeserializer(readers[min.Index].Bytes())
-			nextReview, err := NamedReviewCounterDeserialize(&d)
-			common.FailOnError(err, "Cannot deserialize review")
-			heap.Push(h, ReviewWithSource{
-				Review: *nextReview,
-				Index:  min.Index,
-			})
+		err = PushHeapAtIdx(h, readers[min.Index], min.Index)
+		if err != nil {
+			return 0, err
 		}
 	}
 
-	writer.Flush()
-
-	for _, file := range files {
-		file.Close()
-	}
-
-	return outputFile.Name(), reviewsLen, nil
+	return reviewsLen, nil
 }
 
-func CalculatePercentile(reviewsLen int, percentile uint32) int {
-
-	index := int(float64(reviewsLen) * (float64(percentile) / 100.0))
-
-	return index
+func Q5CalculatePi(reviewsLen int, percentile uint32) int {
+	return int(float64(reviewsLen) * (float64(percentile) / 100.0))
 }
 
 type Q5State struct {
@@ -192,8 +214,11 @@ type Q5State struct {
 }
 
 type Q5 struct {
-	state   *Q5State
-	storage *common.TemporaryStorage
+	state         *Q5State
+	Base          string
+	JobId         string
+	Storage       *common.TemporaryStorage
+	sortedStorage *common.TemporaryStorage
 }
 
 func NewQ5(base string, id string, pctOver int, bufSize int) (*Q5, error) {
@@ -207,12 +232,14 @@ func NewQ5(base string, id string, pctOver int, bufSize int) (*Q5, error) {
 			PercentileOver: uint32(pctOver),
 			bufSize:        bufSize,
 		},
-		storage: s,
+		Base:    base,
+		JobId:   id,
+		Storage: s,
 	}, nil
 }
 
 func (q *Q5) Insert(rc *NamedReviewCounter) error {
-	_, err := q.storage.Append(rc.Serialize())
+	_, err := q.Storage.AppendLine(rc.Serialize())
 	if err != nil {
 		return err
 	}
@@ -228,30 +255,42 @@ func (q *Q5) NextStage() (chan *NamedReviewCounter, chan error) {
 		defer close(cr)
 		defer close(ce)
 
-		// q.storage.Reset()
+		idx, err := q.Q5Quantile()
 
-		// s, err := q.storage.Scanner()
-		// if err != nil {
-		// 	ce <- err
-		// 	return
-		// }
+		if err != nil {
+			ce <- err
+			return
+		}
 
-		// for s.Scan() {
-		// 	b := s.Bytes()
-		// 	d := common.NewDeserializer(b)
-		// 	nrc, err := NamedReviewCounterDeserialize(&d)
-		// 	if err != nil {
-		// 		ce <- err
-		// 		return
-		// 	}
+		q.sortedStorage.Reset()
 
-		// 	cr <- nrc
-		// }
+		s, err := q.sortedStorage.Scanner()
 
-		// if err := s.Err(); err != nil {
-		// 	ce <- err
-		// 	return
-		// }
+		if err != nil {
+			ce <- err
+			return
+		}
+		i := 0
+		for s.Scan() {
+			b := s.Bytes()
+			d := common.NewDeserializer(b)
+			nrc, err := NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				ce <- err
+				return
+			}
+
+			cr <- nrc
+			i++
+			if i >= idx {
+				return
+			}
+		}
+
+		if err := s.Err(); err != nil {
+			ce <- err
+			return
+		}
 	}()
 
 	return cr, ce
@@ -269,5 +308,5 @@ func (q *Q5) Handle(protocolData []byte) (*controller.Partitionable, error) {
 }
 
 func (q *Q5) Shutdown() {
-	q.storage.Close()
+	q.Storage.Close()
 }

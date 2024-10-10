@@ -242,6 +242,32 @@ func NamedReviewCounterDeserialize(d *common.Deserializer) (*NamedReviewCounter,
 	}, nil
 }
 
+type NamedReviewBatch struct {
+	Reviews []*NamedReviewCounter
+	Size    int
+	Weight  int
+	Index   int
+}
+
+func NewNamedReviewBatch(base string, jobId string, index int) *NamedReviewBatch {
+	return &NamedReviewBatch{
+		Reviews: []*NamedReviewCounter{},
+		Size:    0,
+		Weight:  0,
+		Index:   index,
+	}
+}
+
+func (b *NamedReviewBatch) CanHandle(r *NamedReviewCounter) bool {
+	return b.Weight+len(r.Serialize()) < maxBatchSize
+}
+
+func (b *NamedReviewBatch) Add(r *NamedReviewCounter) {
+	b.Reviews = append(b.Reviews, r)
+	b.Size++
+	b.Weight += len(r.Serialize())
+}
+
 func StrParse[T any](s string) (*T, error) {
 	var z T
 	reader := csv.NewReader(strings.NewReader(s))
