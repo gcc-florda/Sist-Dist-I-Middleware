@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 
 	"github.com/google/uuid"
 )
@@ -140,6 +141,25 @@ func (d *Deserializer) ReadBool() (bool, error) {
 		return false, err
 	}
 	return b > 0, err
+}
+
+func (d *Deserializer) ReadUUID() (uuid.UUID, error) {
+	var z uuid.UUID
+	b := make([]byte, 16)
+	n, err := d.Buf.Read(b)
+	if err != nil {
+		return z, err
+	}
+	if n < 16 {
+		return z, errors.New("can't read 16 bytes for UUID")
+	}
+
+	id, err := uuid.FromBytes(b)
+	if err != nil {
+		return z, err
+	}
+
+	return id, nil
 }
 
 func ReadArray[T any](d *Deserializer, f func(*Deserializer) (T, error)) ([]T, error) {

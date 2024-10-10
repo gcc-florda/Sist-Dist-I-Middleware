@@ -1,19 +1,23 @@
 package controller
 
-import "middleware/common"
+import (
+	"middleware/common"
+
+	amqp "github.com/rabbitmq/amqp091-go"
+)
 
 type HandlerRuntime struct {
-	jobId        JobID
+	jobId        common.JobID
 	toController chan *messageToSend
 	handler      Handler
 	validateEOF  EOFValidator
 	forJob       chan *messageFromQueue
-	housekeeping chan JobID
+	housekeeping chan common.JobID
 	eofs         *EOFState
 }
 
-func NewHandlerRuntime(j JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan JobID) (*HandlerRuntime, error) {
-	eof, err := NewEOFState(common.Config.GetString("storage.path"), j)
+func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan common.JobID) (*HandlerRuntime, error) {
+	eof, err := NewEOFState(common.Config.GetString("storage.path"), j.String())
 	if err != nil {
 		return nil, err
 	}
@@ -41,17 +45,16 @@ func (h *HandlerRuntime) Start() {
 			if err != nil {
 				msg.Delivery.Nack(false, true)
 			}
-			h.validateEOF.Update(eof.TokenName)
+			h.eofs.Update(eof.TokenName)
 			msg.Delivery.Ack(false)
+		}
 
-			msg, finished := h.validateEOF.Finish(h.eofs.Received)
-			if finished {
-				ok := h.handleNextStage()
-				if ok {
-					h.toController <- h.broadcast(msg)
-				}
+		msg, finished := h.validateEOF.Finish(h.eofs.Received)
+		if finished {
+			ok := h.handleNextStage()
+			if ok {
+				h.toController <- h.broadcast(msg)
 			}
-
 		}
 	}
 }
@@ -63,9 +66,10 @@ func (h *HandlerRuntime) handleDataMessage(msg *messageFromQueue) {
 		msg.Delivery.Nack(false, true)
 	}
 	if out != nil {
-		h.toController <- h.unicast(out)
+		h.toController <- h.unicast(out, &msg.Delivery)
+	} else {
+		msg.Delivery.Ack(false)
 	}
-	msg.Delivery.Ack(false)
 }
 
 func (h *HandlerRuntime) handleNextStage() bool {
@@ -78,7 +82,7 @@ sendLoop:
 			if !ok {
 				break sendLoop
 			}
-			h.toController <- h.unicast(r)
+			h.toController <- h.unicast(r, nil)
 		case err, ok := <-ce:
 			if !ok {
 				break sendLoop
@@ -90,7 +94,7 @@ sendLoop:
 	return true
 }
 
-func (h *HandlerRuntime) unicast(m Partitionable) *messageToSend {
+func (h *HandlerRuntime) unicast(m Partitionable, d *amqp.Delivery) *messageToSend {
 	return &messageToSend{
 		JobID: h.jobId,
 		Routing: routing{
@@ -98,6 +102,7 @@ func (h *HandlerRuntime) unicast(m Partitionable) *messageToSend {
 			Key:  m.PartitionKey(),
 		},
 		Body: m,
+		Ack:  d,
 	}
 }
 
@@ -108,5 +113,6 @@ func (h *HandlerRuntime) broadcast(m Partitionable) *messageToSend {
 			Type: Routing_Broadcast,
 		},
 		Body: m,
+		Ack:  nil,
 	}
 }

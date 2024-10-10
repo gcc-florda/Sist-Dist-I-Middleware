@@ -2,11 +2,12 @@ package business
 
 import (
 	"middleware/common"
+	"middleware/worker/controller"
 	"path/filepath"
 	"reflect"
 )
 
-func Q1Map(r *Game) *SOCounter {
+func Q1Map(r *Game) controller.Partitionable {
 	return &SOCounter{
 		Windows: boolToCounter(r.Windows),
 		Linux:   boolToCounter(r.Linux),
@@ -87,15 +88,15 @@ func (q *Q1) NextStage() (<-chan *SOCounter, <-chan error) {
 	return ch, ce
 }
 
-func (q *Q1) Handle(protocolData []byte) error {
+func (q *Q1) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&SOCounter{}) {
-		return q.Count(p.(*SOCounter))
+		return nil, q.Count(p.(*SOCounter))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q1) Shutdown() {

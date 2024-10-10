@@ -5,6 +5,7 @@ import (
 	"container/heap"
 	"fmt"
 	"middleware/common"
+	"middleware/worker/controller"
 	"os"
 
 	"path/filepath"
@@ -18,25 +19,25 @@ var log = logging.MustGetLogger("log")
 // Batch size in bytes (34MB)
 const maxBatchSize = 34 * 1024 * 1024
 
-func Q5FilterGames(r *Game, cat string) bool {
-	return common.Contains(r.Categories, cat)
+func Q5FilterGames(r *Game) bool {
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.5.category"))
 }
 
-func Q5FilterReviews(r *Review, pos bool) bool {
-	if pos {
+func Q5FilterReviews(r *Review) bool {
+	if common.Config.GetBool("queries.5.positive") {
 		return r.ReviewScore > 0
 	}
 	return r.ReviewScore < 0
 }
 
-func Q5MapGames(r *Game) *GameName {
+func Q5MapGames(r *Game) controller.Partitionable {
 	return &GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q5MapReviews(r *Review) *ValidReview {
+func Q5MapReviews(r *Review) controller.Partitionable {
 	return &ValidReview{
 		AppID: r.AppID,
 	}
@@ -295,15 +296,15 @@ func (q *Q5) NextStage() (chan *NamedReviewCounter, chan error) {
 	return cr, ce
 }
 
-func (q *Q5) Handle(protocolData []byte) error {
+func (q *Q5) Handle(protocolData []byte) (*controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return q.Insert(p.(*NamedReviewCounter))
+		return nil, q.Insert(p.(*NamedReviewCounter))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q5) Shutdown() {

@@ -25,3 +25,16 @@ const (
 	RoutingReviews  = "reviews"
 	RoutingProtocol = "protocol"
 )
+
+type MessageType = uint8
+
+const (
+	Type_Game MessageType = iota
+	Type_Review
+	Type_SOCounter
+	Type_PlayedTime
+	Type_GameName
+	Type_ValidReview
+	Type_ReviewCounter
+	Type_NamedReviewCounter
+)

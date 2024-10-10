@@ -2,16 +2,17 @@ package business
 
 import (
 	"middleware/common"
+	"middleware/worker/controller"
 	"path/filepath"
 	"reflect"
 	"sort"
 )
 
-func Q2Filter(r *Game, cat string) bool {
-	return common.Contains(r.Categories, cat)
+func Q2Filter(r *Game) bool {
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.2.category"))
 }
 
-func Q2Map(r *Game) *PlayedTime {
+func Q2Map(r *Game) controller.Partitionable {
 	return &PlayedTime{
 		AveragePlaytimeForever: r.AveragePlaytimeForever,
 		Name:                   r.Name,
@@ -117,15 +118,15 @@ func (q *Q2) NextStage() (<-chan *PlayedTime, <-chan error) {
 	return ch, ce
 }
 
-func (q *Q2) Handle(protocolData []byte) error {
+func (q *Q2) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&PlayedTime{}) {
-		return q.Insert(p.(*PlayedTime))
+		return nil, q.Insert(p.(*PlayedTime))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q2) Shutdown() {

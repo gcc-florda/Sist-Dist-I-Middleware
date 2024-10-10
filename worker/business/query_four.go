@@ -2,31 +2,35 @@ package business
 
 import (
 	"middleware/common"
+	"middleware/worker/controller"
 	"path/filepath"
 	"reflect"
 )
 
 type DetectLanguage func(string) bool
 
-func Q4FilterGames(r *Game, cat string) bool {
-	return common.Contains(r.Categories, cat)
+func Q4FilterGames(r *Game) bool {
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.4.category"))
 }
 
-func Q4FilterReviews(r *Review, isLanguage DetectLanguage, pos bool) bool {
-	if pos {
-		return r.ReviewScore > 0 && isLanguage(r.ReviewText)
+func Q4FilterReviewsBuilder(isLanguage DetectLanguage) FilterReview {
+	return func(r *Review) bool {
+		if common.Config.GetBool("queries.4.positive") {
+			return r.ReviewScore > 0 && isLanguage(r.ReviewText)
+		}
+		return r.ReviewScore < 0 && isLanguage(r.ReviewText)
 	}
-	return r.ReviewScore < 0 && isLanguage(r.ReviewText)
+
 }
 
-func Q4MapGames(r *Game) *GameName {
+func Q4MapGames(r *Game) controller.Partitionable {
 	return &GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q4MapReviews(r *Review) *ValidReview {
+func Q4MapReviews(r *Review) controller.Partitionable {
 	return &ValidReview{
 		AppID: r.AppID,
 	}
@@ -104,15 +108,15 @@ func (q *Q4) NextStage() (chan *NamedReviewCounter, chan error) {
 	return cr, ce
 }
 
-func (q *Q4) Handle(protocolData []byte) error {
+func (q *Q4) Handle(protocolData []byte) (*controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return q.Insert(p.(*NamedReviewCounter))
+		return nil, q.Insert(p.(*NamedReviewCounter))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
 func (q *Q4) Shutdown() {
