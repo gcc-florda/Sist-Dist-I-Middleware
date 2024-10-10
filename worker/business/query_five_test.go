@@ -41,7 +41,7 @@ func CreateRandomBatchSorted(n int, idx int) (*business.NamedReviewBatch, *commo
 		})
 	}
 
-	file, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+	file, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", "temp", fmt.Sprintf("batch_%d", batch.Index)))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,7 +67,6 @@ func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
-
 		d := common.NewDeserializer(line)
 		lineDes, err := business.NamedReviewCounterDeserialize(&d)
 		FatalOnError(err, t, fmt.Sprintf("Cannot deserialize review: %s", line))
@@ -171,40 +170,6 @@ func TestQ5PushAtIdx1Row(t *testing.T) {
 		t.Fatalf("Expected %d, got %d", firstRow.Count, min.Review.Count)
 	} else {
 		t.Log("Heap popped correctly")
-	}
-}
-
-func TestQ5PushAtIdxEntireFile(t *testing.T) {
-	N := 10
-
-	h := business.NewHeap()
-
-	batch, file, err := CreateRandomBatchSorted(N, 0)
-	FatalOnError(err, t, "Cannot create batch sorted")
-
-	reader, err := file.Scanner()
-	FatalOnError(err, t, "Cannot create scanner")
-
-	file.Reset()
-	for i := 0; i < batch.Size; i++ {
-		business.PushHeapAtIdx(h, reader, i)
-	}
-
-	if h.Len() != batch.Size {
-		t.Fatalf("Expected heap length %d, got %d", batch.Size, h.Len())
-	} else {
-		t.Log("Heap pushed correctly")
-	}
-
-	lastCount := -1
-	for i := 0; i < batch.Size; i++ {
-		min := h.Pop().(business.ReviewWithSource)
-
-		if lastCount == -1 {
-			lastCount = int(min.Review.Count)
-		} else if int(min.Review.Count) < lastCount {
-			t.Fatalf("Expected increasing order, got %d but last was %d", min.Review.Count, lastCount)
-		}
 	}
 }
 

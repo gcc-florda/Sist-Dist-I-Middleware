@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -87,7 +88,7 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 }
 
 func (t *TemporaryStorage) AppendLine(data []byte) (int, error) {
-	return t.Append(append(data, '\n'))
+	return t.Append(append(append(data, '@'), '*'))
 }
 
 func (t *TemporaryStorage) Reset() {
@@ -135,5 +136,23 @@ func (t *TemporaryStorage) Scanner() (*bufio.Scanner, error) {
 		}
 	}
 
-	return bufio.NewScanner(t.file), nil
+	s := bufio.NewScanner(t.file)
+	s.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if atEOF && len(data) == 0 {
+			return 0, nil, nil
+		}
+		// Look for the first occurrence of '@*'
+		if i := bytes.Index(data, []byte("@*")); i >= 0 {
+			// Return the data up to the delimiter '@*'
+			return i + 2, data[:i], nil
+		}
+		// If we're at EOF and there's remaining data, return it.
+		if atEOF {
+			return len(data), data, nil
+		}
+		// Request more data.
+		return 0, nil, nil
+	})
+
+	return s, nil
 }

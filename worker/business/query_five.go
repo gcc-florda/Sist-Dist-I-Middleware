@@ -4,12 +4,16 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
-	"log"
 	"middleware/common"
+	"os"
 
 	"path/filepath"
 	"reflect"
+
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("log")
 
 // Batch size in bytes (34MB)
 const maxBatchSize = 34 * 1024 * 1024
@@ -39,10 +43,12 @@ func Q5MapReviews(r *Review) *ValidReview {
 }
 
 func (q *Q5) Q5Quantile() (int, error) {
+	defer q.deleteTemp()
 	batch := NewNamedReviewBatch(q.Base, q.JobId, 0)
-	tempSortedFiles := []*common.TemporaryStorage{}
+	tempSortedFiles := make([]*common.TemporaryStorage, 0)
 
 	scanner, err := q.Storage.Scanner()
+	q.Storage.Reset()
 	common.FailOnError(err, "Cannot create scanner")
 
 	for scanner.Scan() {
@@ -57,11 +63,11 @@ func (q *Q5) Q5Quantile() (int, error) {
 			if err != nil {
 				return 0, err
 			}
+			defer tempSortedFile.Close()
 			tempSortedFiles = append(tempSortedFiles, tempSortedFile)
 			batch = NewNamedReviewBatch(q.Base, q.JobId, batch.Index+1)
-		} else {
-			batch.Add(gameReview)
 		}
+		batch.Add(gameReview)
 	}
 
 	// Check if the last batch has any remaining elements
@@ -70,26 +76,35 @@ func (q *Q5) Q5Quantile() (int, error) {
 		if err != nil {
 			return 0, err
 		}
+		defer tempSortedFile.Close()
 		tempSortedFiles = append(tempSortedFiles, tempSortedFile)
 	}
 
-	sortedFile, err := common.NewTemporaryStorage(filepath.Join(".", q.Base, "query_five", q.JobId, "merge_sort"))
+	sortedFile, err := common.NewTemporaryStorage(filepath.Join(".", q.Base, "query_five", q.JobId, "results.sorted"))
 	common.FailOnError(err, "Cannot create temporary storage")
+	q.sortedStorage = sortedFile
 
 	reviewsLen, err := Q5MergeSort(sortedFile, tempSortedFiles)
 	common.FailOnError(err, "Cannot merge batches")
-	defer sortedFile.Close()
 
 	index := Q5CalculatePi(reviewsLen, q.state.PercentileOver)
 	common.FailOnError(err, "Cannot calculate percentile")
 
-	log.Printf("Percentile %d: %d\n", q.state.PercentileOver, index)
+	log.Debugf("Percentile %d: %d\n", q.state.PercentileOver, index)
 
 	return index, nil
 }
 
+func (q *Q5) deleteTemp() {
+	d := filepath.Join(".", q.Base, "query_five", q.JobId, "temp")
+	err := os.RemoveAll(d)
+	if err != nil {
+		log.Errorf("Failed to delete temp directory: %v", err)
+	}
+}
+
 func SortBatch(batch *NamedReviewBatch, base string, jobId string) (*common.TemporaryStorage, error) {
-	tempSortedFile, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_five", jobId, fmt.Sprintf("batch_%d", batch.Index)))
+	tempSortedFile, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_five", jobId, "temp", fmt.Sprintf("batch_%d", batch.Index)))
 
 	if err != nil {
 		return nil, err
@@ -167,7 +182,7 @@ func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.
 		}
 	}
 
-	reviewsLen := h.Len()
+	reviewsLen := 0
 
 	for h.Len() > 0 {
 		min := heap.Pop(h).(ReviewWithSource)
@@ -198,10 +213,11 @@ type Q5State struct {
 }
 
 type Q5 struct {
-	state   *Q5State
-	Base    string
-	JobId   string
-	Storage *common.TemporaryStorage
+	state         *Q5State
+	Base          string
+	JobId         string
+	Storage       *common.TemporaryStorage
+	sortedStorage *common.TemporaryStorage
 }
 
 func NewQ5(base string, id string, pctOver int, bufSize int) (*Q5, error) {
@@ -222,7 +238,7 @@ func NewQ5(base string, id string, pctOver int, bufSize int) (*Q5, error) {
 }
 
 func (q *Q5) Insert(rc *NamedReviewCounter) error {
-	_, err := q.Storage.Append(rc.Serialize())
+	_, err := q.Storage.AppendLine(rc.Serialize())
 	if err != nil {
 		return err
 	}
@@ -238,30 +254,42 @@ func (q *Q5) NextStage() (chan *NamedReviewCounter, chan error) {
 		defer close(cr)
 		defer close(ce)
 
-		// q.storage.Reset()
+		idx, err := q.Q5Quantile()
 
-		// s, err := q.storage.Scanner()
-		// if err != nil {
-		// 	ce <- err
-		// 	return
-		// }
+		if err != nil {
+			ce <- err
+			return
+		}
 
-		// for s.Scan() {
-		// 	b := s.Bytes()
-		// 	d := common.NewDeserializer(b)
-		// 	nrc, err := NamedReviewCounterDeserialize(&d)
-		// 	if err != nil {
-		// 		ce <- err
-		// 		return
-		// 	}
+		q.sortedStorage.Reset()
 
-		// 	cr <- nrc
-		// }
+		s, err := q.sortedStorage.Scanner()
 
-		// if err := s.Err(); err != nil {
-		// 	ce <- err
-		// 	return
-		// }
+		if err != nil {
+			ce <- err
+			return
+		}
+		i := 0
+		for s.Scan() {
+			b := s.Bytes()
+			d := common.NewDeserializer(b)
+			nrc, err := NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				ce <- err
+				return
+			}
+
+			cr <- nrc
+			i++
+			if i >= idx {
+				return
+			}
+		}
+
+		if err := s.Err(); err != nil {
+			ce <- err
+			return
+		}
 	}()
 
 	return cr, ce
