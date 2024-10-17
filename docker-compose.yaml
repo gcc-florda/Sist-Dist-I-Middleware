@@ -36,5 +36,41 @@ services:
     volumes:
       - ./server/config.yaml:/app/config.yaml
 
+  mf:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./worker/config_mf_q1.yaml:/app/config.yaml
+
+  q1_2:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./worker/config_q1_2.yaml:/app/config.yaml
+  
+  q1_3:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./worker/config_q1_3.yaml:/app/config.yaml
+
 volumes:
   rabbitmq_data:

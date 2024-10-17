@@ -117,6 +117,7 @@ func (q *Controller) removeHandler(j common.JobID) {
 
 func (q *Controller) publish(routing string, m common.Serializable) {
 	for _, ex := range q.to {
+		log.Infof("Publishing message with routing key %s into exchange %s", routing, ex.Name)
 		ex.Publish(routing, m)
 	}
 }
@@ -187,6 +188,8 @@ mainloop:
 			d.Nack(false, true)
 			continue
 		}
+
+		log.Debug("Received and deserialized protocol message correctly")
 
 		h, err := q.getHandler(dm.JobID())
 		if err != nil {

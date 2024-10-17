@@ -74,8 +74,8 @@ func boolToCounter(b bool) uint32 {
 	return 0
 }
 
-func (q *Q1) NextStage() (<-chan *SOCounter, <-chan error) {
-	ch := make(chan *SOCounter, 1) //Change this later
+func (q *Q1) NextStage() (<-chan controller.Partitionable, <-chan error) {
+	ch := make(chan controller.Partitionable, 1) //Change this later
 	ce := make(chan error, 1)
 
 	go func() {

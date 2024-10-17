@@ -40,15 +40,28 @@ func NewServer(ip string, port int) *Server {
 }
 
 func (s *Server) InitRabbit() {
-	ex := s.Rabbit.NewExchange(common.ExchangeNameRawData, common.ExchangeDirect)
+	exG := s.Rabbit.NewExchange(common.ExchangeNameGames, common.ExchangeFanout)
+	exR := s.Rabbit.NewExchange(common.ExchangeNameReviews, common.ExchangeFanout)
 
-	qG := s.Rabbit.NewQueue(common.RoutingGames)
-	qR := s.Rabbit.NewQueue(common.RoutingReviews)
-	qP := s.Rabbit.NewQueue(common.RoutingProtocol)
+	MFG_Q1 := s.Rabbit.NewQueue("MFG_Q1")
+	MFG_Q2 := s.Rabbit.NewQueue("MFG_Q2")
+	MFG_Q3 := s.Rabbit.NewQueue("MFG_Q3")
+	MFG_Q4 := s.Rabbit.NewQueue("MFG_Q4")
+	MFG_Q5 := s.Rabbit.NewQueue("MFG_Q5")
 
-	qG.Bind(ex, common.RoutingGames)
-	qR.Bind(ex, common.RoutingReviews)
-	qP.Bind(ex, common.RoutingProtocol)
+	MFR_Q3 := s.Rabbit.NewQueue("MFR_Q3")
+	MFR_Q4 := s.Rabbit.NewQueue("MFR_Q4")
+	MFR_Q5 := s.Rabbit.NewQueue("MFR_Q5")
+
+	MFG_Q1.Bind(exG, "")
+	MFG_Q2.Bind(exG, "")
+	MFG_Q3.Bind(exG, "")
+	MFG_Q4.Bind(exG, "")
+	MFG_Q5.Bind(exG, "")
+
+	MFR_Q3.Bind(exR, "")
+	MFR_Q4.Bind(exR, "")
+	MFR_Q5.Bind(exR, "")
 }
 
 func (s *Server) Start() error {
@@ -94,11 +107,12 @@ func (s *Server) HandleConnection(client *Client) {
 
 		if rk == common.RoutingGames {
 			send[0] = common.Type_Game
+			s.Rabbit.Publish(common.ExchangeNameGames, "", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
 		} else if rk == common.RoutingReviews {
 			send[0] = common.Type_Review
+			s.Rabbit.Publish(common.ExchangeNameReviews, "", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
 		}
 
-		s.Rabbit.Publish(common.ExchangeNameRawData, rk, common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
 	}
 }
 

@@ -5,33 +5,111 @@ import (
 	"middleware/rabbitmq"
 	"middleware/worker/business"
 	"middleware/worker/controller"
+
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("log")
 
 func main() {
 	// Building a controller example
+
+	common.InitLogger("DEBUG")
+	_, err := common.InitConfig("/app/config.yaml")
+	if err != nil {
+		panic("Nos fuimos")
+	}
 	rabbit := rabbitmq.NewRabbit()
 
-	queue := rabbit.NewQueue("MAP_FILTER_GAMES_Q1")
+	exG := rabbit.NewExchange(common.ExchangeNameGames, common.ExchangeFanout)
+	MFG_Q1 := rabbit.NewQueue("MFG_Q1")
+	MFG_Q1.Bind(exG, "")
+	log.Debug("Created map and filter exchange and binded MFG_Q1")
 
-	exc := rabbit.NewExchange("Q1_STAGE_2", common.ExchangeDirect)
+	exQ1_2 := rabbit.NewExchange("Q1_2", common.ExchangeDirect)
+	Q1_2 := rabbit.NewQueue("Q1_2")
+	Q1_2.Bind(exQ1_2, "1")
+	log.Debug("Created Q1 stage 2 exchange and binded Q1_2 with '1' ")
 
-	c := controller.NewController(
-		[]*rabbitmq.Queue{
-			queue,
-		},
-		[]*rabbitmq.Exchange{
-			exc,
-		},
-		&controller.NodeProtocol{
-			PartitionAmount: 3,
-		},
-		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterGames{
-				Filter: nil,
-				Mapper: business.Q1Map,
-			}, controller.NewEOFChecker("Q1_STAGE_2", 1), nil
-		},
-	)
+	exQ1_3 := rabbit.NewExchange("Q1_3", common.ExchangeDirect)
+	Q1_3 := rabbit.NewQueue("Q1_3")
+	Q1_3.Bind(exQ1_3, "1")
+	log.Debug("Created Q1 stage 3 exchange and binded Q1_3 with '1' ")
 
-	c.Start()
+	exR_Q1 := rabbit.NewExchange("RESULT_Q1", common.ExchangeFanout)
+	R_Q1 := rabbit.NewQueue("RESULT_Q1")
+	R_Q1.Bind(exR_Q1, "")
+	log.Debug("Created Q1 Result exchange and binded ResultQ1")
+
+	what := common.Config.GetString("controller")
+
+	if what == "MAP_FILTER_GAMES_Q1" {
+		log.Debug("This is a MFG_Q1")
+		c := controller.NewController(
+			[]*rabbitmq.Queue{
+				MFG_Q1,
+			},
+			[]*rabbitmq.Exchange{
+				exQ1_2,
+			},
+			&controller.NodeProtocol{
+				PartitionAmount: 1,
+			},
+			func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
+				return &business.MapFilterGames{
+					Filter: nil,
+					Mapper: business.Q1Map,
+				}, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
+			},
+		)
+
+		go c.Start()
+	} else if what == "Q1_2" {
+		log.Debug("This is a Q1_2")
+		c := controller.NewController(
+			[]*rabbitmq.Queue{
+				Q1_2,
+			},
+			[]*rabbitmq.Exchange{
+				exQ1_3,
+			},
+			&controller.NodeProtocol{
+				PartitionAmount: 1,
+			},
+			func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
+				check := controller.NewEOFChecker("Q1_STAGE_2", 1)
+				h, err := business.NewQ1("./storage", jobId.String(), "stage_2")
+				if err != nil {
+					return nil, check, err
+				}
+				return h, check, nil
+			},
+		)
+
+		go c.Start()
+	} else if what == "Q1_3" {
+		log.Debug("This is a Q1_3")
+		c := controller.NewController(
+			[]*rabbitmq.Queue{
+				Q1_3,
+			},
+			[]*rabbitmq.Exchange{
+				exR_Q1,
+			},
+			&controller.NodeProtocol{
+				PartitionAmount: 1,
+			},
+			func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
+				check := controller.NewEOFChecker("Q1_STAGE_3", 1)
+				h, err := business.NewQ1("./storage", jobId.String(), "stage_3")
+				if err != nil {
+					return nil, check, err
+				}
+				return h, check, nil
+			},
+		)
+
+		go c.Start()
+	}
+
 }

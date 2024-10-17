@@ -55,5 +55,5 @@ func GetRoutingKey(line string) string {
 		return RoutingReviews
 	}
 
-	return RoutingProtocol
+	panic("ni idea man")
 }

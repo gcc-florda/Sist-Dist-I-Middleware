@@ -12,6 +12,8 @@ const (
 
 const (
 	ExchangeNameRawData = "raw_data"
+	ExchangeNameGames   = "games"
+	ExchangeNameReviews = "reviews"
 )
 
 const (
@@ -21,9 +23,8 @@ const (
 )
 
 const (
-	RoutingGames    = "games"
-	RoutingReviews  = "reviews"
-	RoutingProtocol = "protocol"
+	RoutingGames   = "games.*"
+	RoutingReviews = "reviews.*"
 )
 
 type MessageType = uint8

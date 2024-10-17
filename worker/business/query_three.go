@@ -7,11 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"time"
-
-	"github.com/op/go-logging"
 )
-
-var log = logging.MustGetLogger("log")
 
 func extractDecade(s string) (int, error) {
 	parsedDate, err := time.Parse("Jan 2, 2006", s)
