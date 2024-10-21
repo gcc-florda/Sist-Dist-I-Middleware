@@ -16,6 +16,6 @@ FROM busybox:latest
 
 WORKDIR /app
 
-COPY --from=builder /app/server.bin .
+COPY --from=builder /app/worker.bin .
 
 ENTRYPOINT ["./worker.bin"]

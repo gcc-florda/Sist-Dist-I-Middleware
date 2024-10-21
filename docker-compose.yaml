@@ -59,7 +59,7 @@ services:
       - rabbitmq
     volumes:
       - ./worker/config_q1_2.yaml:/app/config.yaml
-  
+
   q1_3:
     build:
       context: .

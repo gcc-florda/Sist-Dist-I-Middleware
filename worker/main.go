@@ -1,4 +1,4 @@
-package worker
+package main
 
 import (
 	"middleware/common"
@@ -12,8 +12,6 @@ import (
 var log = logging.MustGetLogger("log")
 
 func main() {
-	// Building a controller example
-
 	common.InitLogger("DEBUG")
 	_, err := common.InitConfig("/app/config.yaml")
 	if err != nil {
@@ -41,9 +39,9 @@ func main() {
 	R_Q1.Bind(exR_Q1, "")
 	log.Debug("Created Q1 Result exchange and binded ResultQ1")
 
-	what := common.Config.GetString("controller")
+	workerController := common.Config.GetString("controller")
 
-	if what == "MAP_FILTER_GAMES_Q1" {
+	if workerController == "MAP_FILTER_GAMES_Q1" {
 		log.Debug("This is a MFG_Q1")
 		c := controller.NewController(
 			[]*rabbitmq.Queue{
@@ -64,7 +62,7 @@ func main() {
 		)
 
 		go c.Start()
-	} else if what == "Q1_2" {
+	} else if workerController == "Q1_2" {
 		log.Debug("This is a Q1_2")
 		c := controller.NewController(
 			[]*rabbitmq.Queue{
@@ -87,7 +85,7 @@ func main() {
 		)
 
 		go c.Start()
-	} else if what == "Q1_3" {
+	} else if workerController == "Q1_3" {
 		log.Debug("This is a Q1_3")
 		c := controller.NewController(
 			[]*rabbitmq.Queue{
@@ -111,5 +109,4 @@ func main() {
 
 		go c.Start()
 	}
-
 }
