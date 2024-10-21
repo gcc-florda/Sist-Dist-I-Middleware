@@ -106,11 +106,15 @@ func (s *Server) HandleConnection(client *Client) {
 		copy(send[1:], mb)
 
 		if rk == common.RoutingGames {
+			log.Debugf("Recieved a GAMES type message")
 			send[0] = common.Type_Game
 			s.Rabbit.Publish(common.ExchangeNameGames, "", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+			log.Debugf("Forwarded to ExchangeNameGames")
 		} else if rk == common.RoutingReviews {
+			log.Debugf("Recieved a REVIEWS type message")
 			send[0] = common.Type_Review
 			s.Rabbit.Publish(common.ExchangeNameReviews, "", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+			log.Debugf("Forwarded to ExchangeNameReviews")
 		}
 
 	}

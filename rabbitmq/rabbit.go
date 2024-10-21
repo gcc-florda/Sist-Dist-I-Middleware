@@ -84,6 +84,7 @@ func (r *Rabbit) NewQueue(name string) *Queue {
 
 func (r *Rabbit) Publish(exchangeName string, routingKey string, body common.Serializable) {
 	ex := r.GetExchange(exchangeName)
+	log.Debugf("Got exchange %s", ex.Name)
 
 	if ex == nil {
 		log.Panicf("Exchange %s not found", exchangeName)

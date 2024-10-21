@@ -66,15 +66,18 @@ func NewEOFState(base string, id string) (*EOFState, error) {
 	}
 	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "eof_state", id, "eof.json"))
 	if err != nil {
+		log.Debug("New Temporary Storage returned error")
 		return nil, err
 	}
 
 	b, err := s.ReadAll()
 	if err != nil {
+		log.Debug("ReadAll returned error")
 		return nil, err
 	}
 	err = json.Unmarshal(b, &state.Received)
 	if err != nil {
+		log.Debug("Unmarshal returned error")
 		return nil, err
 	}
 

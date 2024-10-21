@@ -19,6 +19,7 @@ type HandlerRuntime struct {
 func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan common.JobID) (*HandlerRuntime, error) {
 	eof, err := NewEOFState(common.Config.GetString("storage.path"), j.String())
 	if err != nil {
+		log.Debug("Couldnt create NewEOFState")
 		return nil, err
 	}
 	c := &HandlerRuntime{
@@ -31,13 +32,20 @@ func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, 
 		eofs:         eof,
 	}
 
-	go c.Start()
+	wg := common.NewWaitGroup(1)
+
+	go c.Start(wg)
+
+	wg.Wait()
 
 	return c, nil
 }
 
-func (h *HandlerRuntime) Start() {
+func (h *HandlerRuntime) Start(wg *common.WaitGroup) {
+	defer wg.Done()
+
 	for msg := range h.forJob {
+		log.Debugf("Receive msg from forJob chan: %s", msg)
 		if !msg.Message.IsEOF() {
 			h.handleDataMessage(msg)
 		} else {

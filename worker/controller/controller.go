@@ -94,6 +94,7 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 	if !ok {
 		v, eof, err := q.factory(j)
 		if err != nil {
+			log.Debug("The factory returned error")
 			return nil, err
 		}
 		hr, err := NewHandlerRuntime(
@@ -104,6 +105,7 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 			q.housekeeping,
 		)
 		if err != nil {
+			log.Debug("Couldnt create Handler Runtime")
 			return nil, err
 		}
 		q.handlers[j] = hr
@@ -129,7 +131,9 @@ func (q *Controller) broadcast(m common.Serializable) {
 	}
 }
 
-func (q *Controller) Start() {
+func (q *Controller) Start(wg *common.WaitGroup) {
+	defer wg.Done()
+
 	go func() {
 		for h := range q.housekeeping {
 			q.removeHandler(h)
@@ -159,6 +163,7 @@ func (q *Controller) Start() {
 
 	chans := make([]<-chan amqp.Delivery, len(q.rcvFrom))
 	for i, v := range q.rcvFrom {
+		log.Debugf("Consuming from Queue %s", v.ExternalName)
 		chans[i] = v.Consume()
 	}
 
@@ -198,6 +203,7 @@ mainloop:
 			continue
 		}
 
+		log.Debugf("Send Message %s to RK %s", dm, d.RoutingKey)
 		h.forJob <- &messageFromQueue{
 			Delivery: d,
 			Message:  dm,

@@ -41,6 +41,8 @@ func main() {
 
 	workerController := common.Config.GetString("controller")
 
+	wg := common.NewWaitGroup(1)
+
 	if workerController == "MAP_FILTER_GAMES_Q1" {
 		log.Debug("This is a MFG_Q1")
 		c := controller.NewController(
@@ -61,7 +63,9 @@ func main() {
 			},
 		)
 
-		go c.Start()
+		log.Debugf("Controller for MFG_Q1 created")
+
+		go c.Start(wg)
 	} else if workerController == "Q1_2" {
 		log.Debug("This is a Q1_2")
 		c := controller.NewController(
@@ -84,7 +88,9 @@ func main() {
 			},
 		)
 
-		go c.Start()
+		log.Debugf("Controller for Q1_2 created")
+
+		go c.Start(wg)
 	} else if workerController == "Q1_3" {
 		log.Debug("This is a Q1_3")
 		c := controller.NewController(
@@ -107,6 +113,10 @@ func main() {
 			},
 		)
 
-		go c.Start()
+		log.Debugf("Controller for Q1_3 created")
+
+		go c.Start(wg)
 	}
+
+	wg.Wait()
 }
