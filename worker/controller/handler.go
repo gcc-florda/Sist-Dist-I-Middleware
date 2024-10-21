@@ -22,6 +22,9 @@ func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, 
 		log.Debug("Couldnt create NewEOFState")
 		return nil, err
 	}
+
+	log.Debugf("Creating HandlerRuntime for JobID: %s", j)
+
 	c := &HandlerRuntime{
 		jobId:        j,
 		handler:      handler,
@@ -42,6 +45,8 @@ func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, 
 }
 
 func (h *HandlerRuntime) Start(wg *common.WaitGroup) {
+	log.Debugf("Starting HandlerRuntime for JobID: %s", h.jobId)
+
 	defer wg.Done()
 
 	for msg := range h.forJob {

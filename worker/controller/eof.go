@@ -75,13 +75,18 @@ func NewEOFState(base string, id string) (*EOFState, error) {
 		log.Debug("ReadAll returned error")
 		return nil, err
 	}
-	err = json.Unmarshal(b, &state.Received)
-	if err != nil {
-		log.Debug("Unmarshal returned error")
-		return nil, err
-	}
 
 	state.storage = s
+
+	if len(b) == 0 {
+		return state, nil
+	}
+
+	err = json.Unmarshal(b, &state.Received)
+	if err != nil {
+		log.Debugf("Unmarshal message [%s] returned error: %s", b, err)
+		return nil, err
+	}
 
 	return state, nil
 }
@@ -96,6 +101,8 @@ func (e *EOFState) Read(token enums.TokenName) uint {
 }
 
 func (e *EOFState) saveState() error {
+	log.Debugf("Saving state %v", e.Received)
+
 	data, err := json.MarshalIndent(e.Received, "", "  ")
 	if err != nil {
 		return err

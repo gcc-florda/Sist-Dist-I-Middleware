@@ -110,6 +110,7 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 		}
 		q.handlers[j] = hr
 	}
+	log.Debugf("Returning Handler for JobID %s", j)
 	return v, nil
 }
 
