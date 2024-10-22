@@ -38,7 +38,7 @@ func MessageFromBytes(raw []byte) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	log.Debugf("The type of message is: %v", t)
 	return &Message{
 		JobId:   id,
 		_type:   t,

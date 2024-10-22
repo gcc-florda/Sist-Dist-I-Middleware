@@ -35,25 +35,21 @@ func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, 
 		eofs:         eof,
 	}
 
-	wg := common.NewWaitGroup(1)
-
-	go c.Start(wg)
-
-	wg.Wait()
+	go c.Start()
 
 	return c, nil
 }
 
-func (h *HandlerRuntime) Start(wg *common.WaitGroup) {
+func (h *HandlerRuntime) Start() {
 	log.Debugf("Starting HandlerRuntime for JobID: %s", h.jobId)
 
-	defer wg.Done()
-
 	for msg := range h.forJob {
-		log.Debugf("Receive msg from forJob chan: %s", msg)
+		log.Debugf("Receive msg from forJob chan")
 		if !msg.Message.IsEOF() {
+			log.Debugf("Message is not EOF --> %v", msg)
 			h.handleDataMessage(msg)
 		} else {
+			log.Debug("Message is EOF")
 			eof, err := EOFMessageFromBytes(msg.Message.Data())
 			if err != nil {
 				msg.Delivery.Nack(false, true)
@@ -73,14 +69,18 @@ func (h *HandlerRuntime) Start(wg *common.WaitGroup) {
 }
 
 func (h *HandlerRuntime) handleDataMessage(msg *messageFromQueue) {
+	log.Debug("Handling message")
 	out, err := h.handler.Handle(msg.Message.Data())
 	if err != nil {
 		log.Errorf("There was an error while handling a message in JobID: %s. Error: %s", h.jobId, err)
 		msg.Delivery.Nack(false, true)
 	}
+	log.Debug("Message handled")
 	if out != nil {
+		log.Debug("Send message through controller channel")
 		h.toController <- h.unicast(out, &msg.Delivery)
 	} else {
+		log.Debug("Delivery ACK")
 		msg.Delivery.Ack(false)
 	}
 }

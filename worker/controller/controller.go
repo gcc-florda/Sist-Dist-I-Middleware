@@ -109,6 +109,7 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 			return nil, err
 		}
 		q.handlers[j] = hr
+		return hr, nil
 	}
 	log.Debugf("Returning Handler for JobID %s", j)
 	return v, nil
@@ -204,7 +205,7 @@ mainloop:
 			continue
 		}
 
-		log.Debugf("Send Message %s to RK %s", dm, d.RoutingKey)
+		log.Debug("Send Message To Queue")
 		h.forJob <- &messageFromQueue{
 			Delivery: d,
 			Message:  dm,

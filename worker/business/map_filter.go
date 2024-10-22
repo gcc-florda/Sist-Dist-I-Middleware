@@ -17,21 +17,26 @@ type MapFilterGames struct {
 }
 
 func (mf *MapFilterGames) Do(g *Game) (controller.Partitionable, error) {
-	if mf.Filter != nil {
+	if mf.Filter == nil {
+		log.Debug("Mapping, Filter is nil")
 		return mf.Mapper(g), nil
 	}
+	log.Debug("Filtering")
 	ok := mf.Filter(g)
 	if !ok {
 		return nil, nil
 	}
+	log.Debug("Mapping")
 	return mf.Mapper(g), nil
 }
 
 func (mf *MapFilterGames) Handle(protocolData []byte) (controller.Partitionable, error) {
+	log.Debug("Handling game...")
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug("Meesage unmarshalled")
 	if reflect.TypeOf(p) == reflect.TypeOf(&Game{}) {
 		return mf.Do(p.(*Game))
 	}
@@ -59,19 +64,25 @@ type MapFilterReviews struct {
 }
 
 func (mf *MapFilterReviews) Do(r *Review) (controller.Partitionable, error) {
+	log.Debug("Filtering")
 	ok := mf.filter(r)
 	if !ok {
+		log.Debug("ok is nil")
 		return nil, nil
 	}
+	log.Debug("Maping")
 	return mf.mapper(r), nil
 }
 
 func (mf *MapFilterReviews) Handle(protocolData []byte) (controller.Partitionable, error) {
+	log.Debug("Handling game...")
 	p, err := UnmarshalMessage(protocolData)
+	log.Debug("Meesage unmarshalled")
 	if err != nil {
 		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&Review{}) {
+
 		return mf.Do(p.(*Review))
 	}
 	return nil, &UnknownTypeError{}

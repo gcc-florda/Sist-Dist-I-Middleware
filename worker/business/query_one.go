@@ -7,7 +7,6 @@ import (
 	"reflect"
 )
 
-// FIRST STAGE
 func Q1Map(r *Game) controller.Partitionable {
 	log.Debugf("Arrive to first stage gamme %s", r.Name)
 	return &SOCounter{
