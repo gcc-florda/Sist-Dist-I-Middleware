@@ -1,0 +1,20 @@
+query:
+  two:
+    category: indie
+    top: 10
+  three:
+    category: indie
+    positive: false
+    top: 5
+  four:
+    category: "action"
+    positive: true
+    over: 5000
+  five:
+    category: "action"
+    positive: true
+    percentile: 90
+
+savepath: ./data
+sortBuffer: 100
+joinBuffer: 100

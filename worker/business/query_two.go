@@ -9,7 +9,7 @@ import (
 )
 
 func Q2Filter(r *Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.2.category"))
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.two.category"))
 }
 
 func Q2Map(r *Game) controller.Partitionable {
@@ -103,8 +103,8 @@ func (q *Q2) Insert(games *PlayedTime) error {
 	return nil
 }
 
-func (q *Q2) NextStage() (<-chan *PlayedTime, <-chan error) {
-	ch := make(chan *PlayedTime, q.state.N) //Change this later
+func (q *Q2) NextStage() (<-chan controller.Partitionable, <-chan error) {
+	ch := make(chan controller.Partitionable, q.state.N) //Change this later
 	ce := make(chan error, 1)
 	go func() {
 		defer close(ch)

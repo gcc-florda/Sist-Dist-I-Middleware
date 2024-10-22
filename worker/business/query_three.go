@@ -28,11 +28,11 @@ func Q3FilterGames(r *Game) bool {
 		log.Error("Can't extract decade from: %s", r.ReleaseDate)
 		return false
 	}
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.3.category")) && decade == common.Config.GetInt("queries.3.decade")
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.three.category")) && decade == common.Config.GetInt("query.three.decade")
 }
 
 func Q3FilterReviews(r *Review) bool {
-	if common.Config.GetBool("queries.3.positive") {
+	if common.Config.GetBool("query.three.positive") {
 		return r.ReviewScore > 0
 	}
 	return r.ReviewScore < 0
@@ -127,8 +127,8 @@ func (q *Q3) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q3) NextStage() (<-chan *NamedReviewCounter, <-chan error) {
-	ch := make(chan *NamedReviewCounter, q.state.N)
+func (q *Q3) NextStage() (<-chan controller.Partitionable, <-chan error) {
+	ch := make(chan controller.Partitionable, q.state.N)
 	ce := make(chan error, 1)
 
 	go func() {

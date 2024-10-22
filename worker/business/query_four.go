@@ -10,12 +10,12 @@ import (
 type DetectLanguage func(string) bool
 
 func Q4FilterGames(r *Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.4.category"))
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.four.category"))
 }
 
 func Q4FilterReviewsBuilder(isLanguage DetectLanguage) FilterReview {
 	return func(r *Review) bool {
-		if common.Config.GetBool("queries.4.positive") {
+		if common.Config.GetBool("query.four.positive") {
 			return r.ReviewScore > 0 && isLanguage(r.ReviewText)
 		}
 		return r.ReviewScore < 0 && isLanguage(r.ReviewText)
@@ -71,8 +71,8 @@ func (q *Q4) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q4) NextStage() (chan *NamedReviewCounter, chan error) {
-	cr := make(chan *NamedReviewCounter, q.state.bufSize)
+func (q *Q4) NextStage() (<-chan controller.Partitionable, <-chan error) {
+	cr := make(chan controller.Partitionable, q.state.bufSize)
 	ce := make(chan error, 1)
 
 	go func() {
@@ -108,7 +108,7 @@ func (q *Q4) NextStage() (chan *NamedReviewCounter, chan error) {
 	return cr, ce
 }
 
-func (q *Q4) Handle(protocolData []byte) (*controller.Partitionable, error) {
+func (q *Q4) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err

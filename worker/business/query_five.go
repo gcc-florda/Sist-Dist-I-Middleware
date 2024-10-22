@@ -20,11 +20,11 @@ var log = logging.MustGetLogger("log")
 const maxBatchSize = 34 * 1024 * 1024
 
 func Q5FilterGames(r *Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("queries.5.category"))
+	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.five.category"))
 }
 
 func Q5FilterReviews(r *Review) bool {
-	if common.Config.GetBool("queries.5.positive") {
+	if common.Config.GetBool("query.five.positive") {
 		return r.ReviewScore > 0
 	}
 	return r.ReviewScore < 0
@@ -247,8 +247,8 @@ func (q *Q5) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q5) NextStage() (chan *NamedReviewCounter, chan error) {
-	cr := make(chan *NamedReviewCounter, q.state.bufSize)
+func (q *Q5) NextStage() (<-chan controller.Partitionable, <-chan error) {
+	cr := make(chan controller.Partitionable, q.state.bufSize)
 	ce := make(chan error, 1)
 
 	go func() {
@@ -296,7 +296,7 @@ func (q *Q5) NextStage() (chan *NamedReviewCounter, chan error) {
 	return cr, ce
 }
 
-func (q *Q5) Handle(protocolData []byte) (*controller.Partitionable, error) {
+func (q *Q5) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
