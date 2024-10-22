@@ -119,6 +119,6 @@ func (q *Q4) Handle(protocolData []byte) (controller.Partitionable, error) {
 	return nil, &UnknownTypeError{}
 }
 
-func (q *Q4) Shutdown() {
+func (q *Q4) Shutdown(delete bool) {
 	q.storage.Close()
 }

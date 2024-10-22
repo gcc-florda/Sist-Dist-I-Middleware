@@ -15,6 +15,7 @@ query:
     positive: true
     percentile: 90
 
-savepath: ./data
+savepath: data
+metasavepath: metadata
 sortBuffer: 100
 joinBuffer: 100

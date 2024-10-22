@@ -129,6 +129,12 @@ func (q *Q2) Handle(protocolData []byte) (controller.Partitionable, error) {
 	return nil, &UnknownTypeError{}
 }
 
-func (q *Q2) Shutdown() {
+func (q *Q2) Shutdown(delete bool) {
 	q.storage.Close()
+	if delete {
+		err := q.storage.Delete()
+		if err != nil {
+			log.Errorf("Error while deleting the file: %s", err)
+		}
+	}
 }

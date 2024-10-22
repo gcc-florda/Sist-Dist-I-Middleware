@@ -49,7 +49,7 @@ func (mf *MapFilterGames) NextStage() (<-chan controller.Partitionable, <-chan e
 	return cr, ce
 }
 
-func (mf *MapFilterGames) Shutdown() {
+func (mf *MapFilterGames) Shutdown(delete bool) {
 
 }
 
@@ -88,6 +88,6 @@ func (mf *MapFilterReviews) NextStage() (<-chan controller.Partitionable, <-chan
 	return cr, ce
 }
 
-func (mf *MapFilterReviews) Shutdown() {
+func (mf *MapFilterReviews) Shutdown(delete bool) {
 
 }

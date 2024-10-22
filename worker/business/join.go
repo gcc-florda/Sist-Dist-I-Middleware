@@ -219,7 +219,18 @@ func (q *Join) Handle(protocolData []byte) (controller.Partitionable, error) {
 	return nil, &UnknownTypeError{}
 }
 
-func (q *Join) Shutdown() {
+func (q *Join) Shutdown(delete bool) {
 	q.gameStorage.Close()
 	q.reviewStorage.Close()
+	if delete {
+		err := q.gameStorage.Delete()
+		if err != nil {
+			log.Errorf("Error while deleting the file: %s", err)
+		}
+
+		err = q.reviewStorage.Delete()
+		if err != nil {
+			log.Errorf("Error while deleting the file: %s", err)
+		}
+	}
 }

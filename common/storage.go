@@ -58,6 +58,17 @@ func (t *TemporaryStorage) Close() {
 	t.file = nil
 }
 
+func (t *TemporaryStorage) Delete() error {
+	t.Close()
+
+	err := os.Remove(t.filepath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (t *TemporaryStorage) handleShutdown() {
 	<-t.term
 	t.Close()
