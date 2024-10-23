@@ -1,0 +1,8 @@
+controllers:
+  - type: "MFGQ1"
+    readFromPartition: 2 # This is from what partition do I read. The partition amounts is in the architecture config
+  # - type: "Q1S2"
+  #   readFromPartition: 3
+  # - type: "Q1S3"
+  #   readFromPartition: 1 # For any Stage 3, this should always be one
+

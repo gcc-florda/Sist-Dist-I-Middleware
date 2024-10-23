@@ -17,7 +17,7 @@ func InitConfig() (*viper.Viper, error) {
 }
 func TestQ4ReviewFilteringEnglish(t *testing.T) {
 	InitConfig()
-	common.Config.SetDefault("queries.3.positive", false)
+	common.Config.SetDefault("query.three.positive", false)
 	detector := lingua.NewLanguageDetectorBuilder().
 		FromLanguages(lingua.English, lingua.Spanish).
 		WithMinimumRelativeDistance(0.9).
@@ -41,7 +41,7 @@ func TestQ4ReviewFilteringEnglish(t *testing.T) {
 
 func TestQ4ReviewFilteringSpanish(t *testing.T) {
 	InitConfig()
-	common.Config.SetDefault("queries.3.positive", false)
+	common.Config.SetDefault("query.3.positive", false)
 	detector := lingua.NewLanguageDetectorBuilder().
 		FromLanguages(lingua.English, lingua.Spanish).
 		WithMinimumRelativeDistance(0.9).

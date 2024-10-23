@@ -49,21 +49,21 @@ func (mf *MapFilterGames) NextStage() (<-chan controller.Partitionable, <-chan e
 	return cr, ce
 }
 
-func (mf *MapFilterGames) Shutdown() {
+func (mf *MapFilterGames) Shutdown(delete bool) {
 
 }
 
 type MapFilterReviews struct {
-	filter FilterReview
-	mapper MapReview
+	Filter FilterReview
+	Mapper MapReview
 }
 
 func (mf *MapFilterReviews) Do(r *Review) (controller.Partitionable, error) {
-	ok := mf.filter(r)
+	ok := mf.Filter(r)
 	if !ok {
 		return nil, nil
 	}
-	return mf.mapper(r), nil
+	return mf.Mapper(r), nil
 }
 
 func (mf *MapFilterReviews) Handle(protocolData []byte) (controller.Partitionable, error) {
@@ -88,6 +88,6 @@ func (mf *MapFilterReviews) NextStage() (<-chan controller.Partitionable, <-chan
 	return cr, ce
 }
 
-func (mf *MapFilterReviews) Shutdown() {
+func (mf *MapFilterReviews) Shutdown(delete bool) {
 
 }

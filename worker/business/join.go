@@ -2,6 +2,7 @@ package business
 
 import (
 	"middleware/common"
+	"middleware/worker/controller"
 	"path/filepath"
 	"reflect"
 )
@@ -16,13 +17,13 @@ type Join struct {
 	gameStorage   *common.TemporaryStorage
 }
 
-func NewJoin(base string, id string, bufSize int) (*Join, error) {
-	r, err := common.NewTemporaryStorage(filepath.Join(".", base, "join", id, "review.results"))
+func NewJoin(base string, query string, id string, bufSize int) (*Join, error) {
+	r, err := common.NewTemporaryStorage(filepath.Join(".", base, query, "join", id, "review.results"))
 	if err != nil {
 		return nil, err
 	}
 
-	g, err := common.NewTemporaryStorage(filepath.Join(".", base, "join", id, "game.results"))
+	g, err := common.NewTemporaryStorage(filepath.Join(".", base, query, "join", id, "game.results"))
 	if err != nil {
 		return nil, err
 	}
@@ -114,9 +115,9 @@ func (q *Join) addReview(appId string) error {
 	return nil
 }
 
-func (q *Join) NextStage() (<-chan *NamedReviewCounter, <-chan error) {
+func (q *Join) NextStage() (<-chan controller.Partitionable, <-chan error) {
 	cache := common.NewJoinCache[string, *ReviewCounter](q.state.bufSize)
-	cr := make(chan *NamedReviewCounter, q.state.bufSize)
+	cr := make(chan controller.Partitionable, q.state.bufSize)
 	ce := make(chan error, 1)
 	go func() {
 		defer close(cr)
@@ -203,22 +204,33 @@ func (q *Join) NextStage() (<-chan *NamedReviewCounter, <-chan error) {
 	return cr, ce
 }
 
-func (q *Join) Handle(protocolData []byte) error {
+func (q *Join) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&ValidReview{}) {
-		return q.AddReview(p.(*ValidReview))
+		return nil, q.AddReview(p.(*ValidReview))
 	}
 
 	if reflect.TypeOf(p) == reflect.TypeOf(&GameName{}) {
-		return q.AddGame(p.(*GameName))
+		return nil, q.AddGame(p.(*GameName))
 	}
-	return &UnknownTypeError{}
+	return nil, &UnknownTypeError{}
 }
 
-func (q *Join) Shutdown() {
+func (q *Join) Shutdown(delete bool) {
 	q.gameStorage.Close()
 	q.reviewStorage.Close()
+	if delete {
+		err := q.gameStorage.Delete()
+		if err != nil {
+			log.Errorf("Error while deleting the file: %s", err)
+		}
+
+		err = q.reviewStorage.Delete()
+		if err != nil {
+			log.Errorf("Error while deleting the file: %s", err)
+		}
+	}
 }

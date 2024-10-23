@@ -72,7 +72,7 @@ func recreateFiles() {
 
 func TestJoinOutput(t *testing.T) {
 	recreateFiles()
-	j, err := business.NewJoin("test_files", "1", 1)
+	j, err := business.NewJoin("test_files", "test", "1", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,8 +92,9 @@ loop:
 			if !ok {
 				break loop
 			}
-			v, ok := expected[msg.Name]
-			if !ok || v != msg.Count {
+
+			v, ok := expected[msg.(*business.NamedReviewCounter).Name]
+			if !ok || v != msg.(*business.NamedReviewCounter).Count {
 				t.Fatal("Unknown")
 			}
 		case msg, ok := <-ce:
@@ -107,7 +108,7 @@ loop:
 
 func TestJoinAddReview(t *testing.T) {
 	deleteFiles()
-	j, err := business.NewJoin("test_files", "1", 1)
+	j, err := business.NewJoin("test_files", "test", "1", 1)
 	if err != nil {
 		t.Fatal(err)
 	}

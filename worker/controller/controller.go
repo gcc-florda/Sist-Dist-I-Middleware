@@ -4,7 +4,11 @@ import (
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
+	"os"
+	"os/signal"
 	"reflect"
+	"sync"
+	"syscall"
 
 	"github.com/op/go-logging"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -25,7 +29,7 @@ type EOFValidator interface {
 type Handler interface {
 	Handle(protocolData []byte) (Partitionable, error)
 	NextStage() (<-chan Partitionable, <-chan error)
-	Shutdown()
+	Shutdown(delete bool)
 }
 
 type Partitionable interface {
@@ -70,15 +74,16 @@ type Controller struct {
 	protocol     Protocol
 	factory      HandlerFactory
 	handlers     map[common.JobID]*HandlerRuntime
-	housekeeping chan common.JobID
+	housekeeping chan *HandlerRuntime
+	runtimeWG    sync.WaitGroup
 }
 
 func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
 
-	mts := make(chan *messageToSend, common.Config.GetInt("controllers.bufferSize.toSend"))
-	h := make(chan common.JobID, common.Config.GetInt("controllers.bufferSize.deadHandlers"))
+	mts := make(chan *messageToSend, 50)
+	h := make(chan *HandlerRuntime, 50)
 
-	return &Controller{
+	c := &Controller{
 		rcvFrom:      from,
 		to:           to,
 		protocol:     protocol,
@@ -87,6 +92,17 @@ func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Pro
 		handlers:     make(map[common.JobID]*HandlerRuntime),
 		housekeeping: h,
 	}
+	// Artificially add one to keep it spinning as long as we don't get a shutdown
+	c.runtimeWG.Add(1)
+	go func() {
+		term := make(chan os.Signal, 1)
+		signal.Notify(term, syscall.SIGTERM)
+		<-term
+		// Remove the artificial one
+		log.Debugf("Received shutdown signal in controller")
+		c.runtimeWG.Done()
+	}()
+	return c
 }
 
 func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
@@ -107,12 +123,18 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 			return nil, err
 		}
 		q.handlers[j] = hr
+		q.runtimeWG.Add(1)
 	}
 	return v, nil
 }
 
-func (q *Controller) removeHandler(j common.JobID) {
-	delete(q.handlers, j)
+func (q *Controller) removeHandler(h *HandlerRuntime) {
+	// BLOCKING CALL, wait for the handler to finish all its work.
+	// Not a problem that this blocks, because the others handlers
+	// are working in a separate goroutine, so they can do work.
+	h.Finish()
+	delete(q.handlers, h.JobId)
+	q.runtimeWG.Done()
 }
 
 func (q *Controller) publish(routing string, m common.Serializable) {
@@ -130,13 +152,32 @@ func (q *Controller) broadcast(m common.Serializable) {
 }
 
 func (q *Controller) Start() {
+	var end sync.WaitGroup
+
+	end.Add(1)
 	go func() {
+		defer end.Done()
+		// Once we got a Shutdown AND all the runtimes closed themselves, then close the controller.
+		q.runtimeWG.Wait()
+		// At this point, absolutely no handler runtime is running. We can close this safely
+		close(q.housekeeping)
+		close(q.handlerChan)
+		log.Debugf("Shut down controller")
+	}()
+
+	end.Add(1)
+	go func() {
+		defer end.Done()
 		for h := range q.housekeeping {
 			q.removeHandler(h)
 		}
+		log.Debugf("Closed all handlers")
 	}()
 
+	end.Add(1)
 	go func() {
+		defer end.Done()
+		// Listen for messages to send until all handlers AND a shutdown happened.
 		for mts := range q.handlerChan {
 			m, err := q.protocol.Marshal(mts.JobID, mts.Body)
 			if err != nil {
@@ -155,6 +196,7 @@ func (q *Controller) Start() {
 				}
 			}
 		}
+		log.Debugf("Sent all pending messages")
 	}()
 
 	chans := make([]<-chan amqp.Delivery, len(q.rcvFrom))
@@ -174,7 +216,8 @@ mainloop:
 	for {
 		chosen, value, ok := reflect.Select(cases)
 		if !ok {
-			log.Errorf("Closed Queue %s, exiting loop as all Queues are needed.", q.rcvFrom[chosen].ExternalName)
+			// At this point, all queues are closed and no messages are in flight
+			log.Infof("Closed Queue %s, exiting loop as all Queues are needed.", q.rcvFrom[chosen].ExternalName)
 			break mainloop
 		}
 		d, ok := value.Interface().(amqp.Delivery)
@@ -193,7 +236,7 @@ mainloop:
 
 		h, err := q.getHandler(dm.JobID())
 		if err != nil {
-			log.Errorf("Error while gettin a handler for Queue %s, JobID: %s Error: %s", q.rcvFrom[chosen].ExternalName, dm.JobID(), err)
+			log.Errorf("Error while getting a handler for Queue %s, JobID: %s Error: %s", q.rcvFrom[chosen].ExternalName, dm.JobID(), err)
 			d.Nack(false, true)
 			continue
 		}
@@ -202,5 +245,17 @@ mainloop:
 			Delivery: d,
 			Message:  dm,
 		}
+	}
+	log.Debugf("Ending main loop")
+	// We have sent everything in flight, finalize the handlers
+	q.SignalNoMoreMessages()
+
+	end.Wait()
+	log.Debugf("Finalized main loop for handler")
+}
+
+func (q *Controller) SignalNoMoreMessages() {
+	for k := range q.handlers {
+		close(q.handlers[k].forJob)
 	}
 }

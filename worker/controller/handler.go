@@ -7,36 +7,57 @@ import (
 )
 
 type HandlerRuntime struct {
-	jobId        common.JobID
-	toController chan *messageToSend
-	handler      Handler
-	validateEOF  EOFValidator
-	forJob       chan *messageFromQueue
-	housekeeping chan common.JobID
-	eofs         *EOFState
+	JobId           common.JobID
+	toController    chan *messageToSend
+	handler         Handler
+	validateEOF     EOFValidator
+	forJob          chan *messageFromQueue
+	housekeeping    chan *HandlerRuntime
+	eofs            *EOFState
+	removeOnCleanup bool
+	finish          chan bool
 }
 
-func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan common.JobID) (*HandlerRuntime, error) {
-	eof, err := NewEOFState(common.Config.GetString("storage.path"), j.String())
+func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan *HandlerRuntime) (*HandlerRuntime, error) {
+	eof, err := NewEOFState(common.Config.GetString("metasavepath"), j.String())
 	if err != nil {
 		return nil, err
 	}
 	c := &HandlerRuntime{
-		jobId:        j,
-		handler:      handler,
-		validateEOF:  validator,
-		toController: send,
-		forJob:       make(chan *messageFromQueue, 50),
-		housekeeping: housekeeping,
-		eofs:         eof,
+		JobId:           j,
+		handler:         handler,
+		validateEOF:     validator,
+		toController:    send,
+		forJob:          make(chan *messageFromQueue, 50),
+		housekeeping:    housekeeping,
+		eofs:            eof,
+		removeOnCleanup: false,
+		finish:          make(chan bool, 1),
 	}
 
 	go c.Start()
-
 	return c, nil
 }
 
 func (h *HandlerRuntime) Start() {
+	// We get here if and only if
+	//	- We finalize the job for this handler
+	//	- An external force closed the channel for receiving messages
+	defer h.cleanup()
+	defer func() {
+		h.finish <- true
+	}()
+
+	msg, finished := h.validateEOF.Finish(h.eofs.Received)
+	if finished {
+		ok := h.handleNextStage()
+		if ok {
+			h.toController <- h.broadcast(msg)
+			h.removeOnCleanup = true
+			return
+		}
+	}
+
 	for msg := range h.forJob {
 		if !msg.Message.IsEOF() {
 			h.handleDataMessage(msg)
@@ -54,15 +75,25 @@ func (h *HandlerRuntime) Start() {
 			ok := h.handleNextStage()
 			if ok {
 				h.toController <- h.broadcast(msg)
+				h.removeOnCleanup = true
+				return
 			}
 		}
 	}
+
+	log.Debug("Finalized runtime for handler for %s", h.JobId.String())
+}
+
+func (h *HandlerRuntime) Finish() {
+	// Ensure that the runtime has sent everything to the controller
+	<-h.finish
+	h.handler.Shutdown(h.removeOnCleanup)
 }
 
 func (h *HandlerRuntime) handleDataMessage(msg *messageFromQueue) {
 	out, err := h.handler.Handle(msg.Message.Data())
 	if err != nil {
-		log.Errorf("There was an error while handling a message in JobID: %s. Error: %s", h.jobId, err)
+		log.Errorf("There was an error while handling a message in JobID: %s. Error: %s", h.JobId, err)
 		msg.Delivery.Nack(false, true)
 	}
 	if out != nil {
@@ -87,7 +118,7 @@ sendLoop:
 			if !ok {
 				break sendLoop
 			}
-			log.Errorf("There was an error while handling a next stage message in JobID: %s. Error: %s", h.jobId, err)
+			log.Errorf("There was an error while handling a next stage message in JobID: %s. Error: %s", h.JobId, err)
 			return false
 		}
 	}
@@ -96,7 +127,7 @@ sendLoop:
 
 func (h *HandlerRuntime) unicast(m Partitionable, d *amqp.Delivery) *messageToSend {
 	return &messageToSend{
-		JobID: h.jobId,
+		JobID: h.JobId,
 		Routing: routing{
 			Type: Routing_Unicast,
 			Key:  m.PartitionKey(),
@@ -108,11 +139,15 @@ func (h *HandlerRuntime) unicast(m Partitionable, d *amqp.Delivery) *messageToSe
 
 func (h *HandlerRuntime) broadcast(m Partitionable) *messageToSend {
 	return &messageToSend{
-		JobID: h.jobId,
+		JobID: h.JobId,
 		Routing: routing{
 			Type: Routing_Broadcast,
 		},
 		Body: m,
 		Ack:  nil,
 	}
+}
+
+func (h *HandlerRuntime) cleanup() {
+	h.housekeeping <- h
 }

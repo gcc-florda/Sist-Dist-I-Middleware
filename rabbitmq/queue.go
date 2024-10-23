@@ -2,6 +2,9 @@ package rabbitmq
 
 import (
 	"middleware/common"
+	"os"
+	"os/signal"
+	"syscall"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -45,15 +48,25 @@ func (q *Queue) Bind(exchange *Exchange, routingKey string) {
 }
 
 func (q *Queue) Consume() <-chan amqp.Delivery {
+
 	messages, err := q.Channel.Consume(
 		q.Name,
-		"",
+		q.Name,
 		false,
 		false,
 		false,
 		false,
 		nil,
 	)
+
+	go func() {
+		term := make(chan os.Signal, 1)
+		signal.Notify(term, syscall.SIGTERM)
+		<-term
+		log.Debugf("Cancelling channel for queue %s", q.Name)
+		q.Channel.Cancel(q.Name, false)
+	}()
+
 	common.FailOnError(err, "Failed to consume messages")
 
 	return messages
