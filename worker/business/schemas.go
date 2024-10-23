@@ -77,15 +77,18 @@ func (s *SOCounter) PartitionKey() string {
 func SOCounterDeserialize(d *common.Deserializer) (*SOCounter, error) {
 	windows, err := d.ReadUint32()
 	if err != nil {
+		log.Debug("UnmarshalMessageDeserializer - SOCounterDeserialize - Failed Reading Uint32 for Windows")
 		return nil, err
 	}
 
 	linux, err := d.ReadUint32()
 	if err != nil {
+		log.Debug("UnmarshalMessageDeserializer - SOCounterDeserialize - Failed Reading Uint32 for Linux")
 		return nil, err
 	}
 	mac, err := d.ReadUint32()
 	if err != nil {
+		log.Debug("UnmarshalMessageDeserializer - SOCounterDeserialize - Failed Reading Uint32 for Mac")
 		return nil, err
 	}
 
@@ -275,12 +278,14 @@ func StrParse[T any](s string) (*T, error) {
 	row, err := reader.Read()
 
 	if err != nil {
+		log.Debugf("StrParse returned error for s = %s", s)
 		return nil, err
 	}
 
 	err = mapCSVToStruct(row, &z)
 
 	if err != nil {
+		log.Debug("CSV mapCSVToStruct(row, &z) failed")
 		return nil, err
 	}
 
@@ -354,8 +359,10 @@ func UnmarshalMessage(messageBytes []byte) (any, error) {
 }
 
 func UnmarshalMessageDeserializer(d *common.Deserializer) (any, error) {
+	log.Debug("UnmarshalMessageDeserializer Starting...")
 	t, err := d.ReadUint8()
 	if err != nil {
+		log.Debug("UnmarshalMessageDeserializer - Failed Reading Uint8")
 		return nil, err
 	}
 
@@ -363,28 +370,37 @@ func UnmarshalMessageDeserializer(d *common.Deserializer) (any, error) {
 	case common.Type_Game:
 		s, err := d.ReadString()
 		if err != nil {
+			log.Debug("UnmarshalMessageDeserializer - Failed Reading String for Type Game")
 			return nil, err
 		}
 		return StrParse[Game](s)
 	case common.Type_Review:
 		s, err := d.ReadString()
 		if err != nil {
+			log.Debug("UnmarshalMessageDeserializer - Failed Reading String for Type Review")
 			return nil, err
 		}
 		return StrParse[Review](s)
 	case common.Type_SOCounter:
+		log.Debug("UnmarshalMessageDeserializer - The message recieved is type common.Type_SOCounter")
 		return SOCounterDeserialize(d)
 	case common.Type_PlayedTime:
+		log.Debug("UnmarshalMessageDeserializer - The message recieved is type common.Type_PlayedTime")
 		return PlayedTimeDeserialize(d)
 	case common.Type_GameName:
+		log.Debug("UnmarshalMessageDeserializer - The message recieved is type common.Type_GameName")
 		return GameNameDeserialize(d)
 	case common.Type_ValidReview:
+		log.Debug("UnmarshalMessageDeserializer - The message recieved is type common.Type_ValidReview")
 		return ValidReviewDeserialize(d)
 	case common.Type_ReviewCounter:
+		log.Debug("UnmarshalMessageDeserializer - The message recieved is type common.Type_ReviewCounter")
 		return ReviewCounterDeserialize(d)
 	case common.Type_NamedReviewCounter:
+		log.Debug("UnmarshalMessageDeserializer - The message recieved is type common.Type_NamedReviewCounter")
 		return NamedReviewCounterDeserialize(d)
 	}
+	log.Debug("UnmarshalMessageDeserializer - The message recieved is type UnknownTypeError")
 	return nil, &UnknownTypeError{}
 }
 

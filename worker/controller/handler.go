@@ -46,7 +46,7 @@ func (h *HandlerRuntime) Start() {
 	for msg := range h.forJob {
 		log.Debugf("Receive msg from forJob chan")
 		if !msg.Message.IsEOF() {
-			log.Debugf("Message is not EOF --> %v", msg)
+			log.Debugf("Message is not EOF")
 			h.handleDataMessage(msg)
 		} else {
 			log.Debug("Message is EOF")

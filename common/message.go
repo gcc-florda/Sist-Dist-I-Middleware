@@ -48,15 +48,20 @@ func MessageFromBytes(raw []byte) (*Message, error) {
 
 func messageDeserialize(d *Deserializer) (uuid.UUID, uint8, error) {
 	id, err := d.ReadUUID()
+	log.Debugf("Message Deserialize id: %s", id)
 	if err != nil {
+		log.Debugf("Message ReadUUID failed")
 		return id, 0, err
 	}
 
 	t, err := d.ReadUint8()
+	log.Debugf("Message Type: %v", t)
 	if err != nil {
+		log.Debugf("Message ReadUint8 failed")
 		return id, 0, err
 	}
 	if t != ProtocolMessage_Data && t != ProtocolMessage_Control {
+		log.Debugf("Unknown message type")
 		return id, t, errors.New("the read message from the protocol is not of a known type")
 	}
 

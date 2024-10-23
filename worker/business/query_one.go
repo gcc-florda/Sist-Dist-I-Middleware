@@ -92,11 +92,17 @@ func (q *Q1) NextStage() (<-chan controller.Partitionable, <-chan error) {
 func (q *Q1) Handle(protocolData []byte) (controller.Partitionable, error) {
 	p, err := UnmarshalMessage(protocolData)
 	if err != nil {
+		log.Debugf("Unmarshal failed: %s", err)
 		return nil, err
 	}
+	log.Debugf("Message unmarshalled: %s", p)
+	log.Debugf("reflect.TypeOf(p) = %v", reflect.TypeOf(p))
+	log.Debugf("reflect.TypeOf(&SOCounter{}) = %v", reflect.TypeOf(&SOCounter{}))
 	if reflect.TypeOf(p) == reflect.TypeOf(&SOCounter{}) {
+		log.Debugf("Returning a count")
 		return nil, q.Count(p.(*SOCounter))
 	}
+	log.Debugf("Q1Handle - UnknownTypeError")
 	return nil, &UnknownTypeError{}
 }
 

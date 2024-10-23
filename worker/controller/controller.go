@@ -144,6 +144,7 @@ func (q *Controller) Start(wg *common.WaitGroup) {
 
 	go func() {
 		for mts := range q.handlerChan {
+			log.Debugf("Receive message to marshal: %+v", mts.Body)
 			m, err := q.protocol.Marshal(mts.JobID, mts.Body)
 			if err != nil {
 				log.Error(err)

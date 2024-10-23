@@ -21,7 +21,9 @@ func (p *NodeProtocol) Unmarshal(rawData []byte) (DataMessage, error) {
 
 func (p *NodeProtocol) Marshal(j common.JobID, d common.Serializable) (common.Serializable, error) {
 	t := ProtocolMessage_Data
+	log.Debugf("Marshal for job %s", j)
 	if IsEOF(d) {
+		log.Debugf("Marshal for job %s EOF", j)
 		t = ProtocolMessage_Control
 	}
 	data := d.Serialize()
