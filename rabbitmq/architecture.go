@@ -13,6 +13,7 @@ type Architecture struct {
 	QueryFour  *TwoStageArchitecture
 	QueryFive  *TwoStageArchitecture
 	Results    *Results
+	rabbit     *Rabbit
 }
 
 func CreateArchitecture(cfg *ArchitectureConfig) *Architecture {
@@ -26,7 +27,12 @@ func CreateArchitecture(cfg *ArchitectureConfig) *Architecture {
 		QueryFour:  CreateTwoStageArchitecture(rabbit, &cfg.QueryFour, "Q4"),
 		QueryFive:  CreateTwoStageArchitecture(rabbit, &cfg.QueryFive, "Q5"),
 		Results:    CreateResults(rabbit),
+		rabbit:     rabbit,
 	}
+}
+
+func (a *Architecture) Close() {
+	a.rabbit.Close()
 }
 
 type PartitionedQueues struct {
@@ -35,10 +41,10 @@ type PartitionedQueues struct {
 }
 
 func CreatePartitionedQueues(rabbit *Rabbit, bindTo *Exchange, prefix string, count int) *PartitionedQueues {
-	queues := make([]*Queue, count)
+	queues := make([]*Queue, 0, count)
 	for i := 1; i <= count; i++ {
-		q := rabbit.NewQueue(fmt.Sprintf("%s_%d", prefix, count))
-		q.Bind(bindTo, fmt.Sprintf("%d", count))
+		q := rabbit.NewQueue(fmt.Sprintf("%s_%d", prefix, i))
+		q.Bind(bindTo, fmt.Sprintf("%d", i))
 		queues = append(queues, q)
 	}
 	return &PartitionedQueues{queues: queues, count: count}
@@ -48,7 +54,7 @@ func (q *PartitionedQueues) GetQueue(partitionKey int) *Queue {
 	if partitionKey > q.count {
 		log.Fatalf("Can't get a queue with partition key greater than the queues created (get: %d, created: %d)", partitionKey, q.count)
 	}
-	return q.queues[partitionKey]
+	return q.queues[partitionKey-1]
 }
 
 type PartitionedExchange struct {

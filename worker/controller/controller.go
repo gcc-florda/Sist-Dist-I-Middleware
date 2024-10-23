@@ -99,6 +99,7 @@ func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Pro
 		signal.Notify(term, syscall.SIGTERM)
 		<-term
 		// Remove the artificial one
+		log.Debugf("Received shutdown signal in controller")
 		c.runtimeWG.Done()
 	}()
 	return c
@@ -151,21 +152,31 @@ func (q *Controller) broadcast(m common.Serializable) {
 }
 
 func (q *Controller) Start() {
+	var end sync.WaitGroup
+
+	end.Add(1)
 	go func() {
+		defer end.Done()
 		// Once we got a Shutdown AND all the runtimes closed themselves, then close the controller.
-		q.runtimeWG.Done()
+		q.runtimeWG.Wait()
 		// At this point, absolutely no handler runtime is running. We can close this safely
 		close(q.housekeeping)
 		close(q.handlerChan)
+		log.Debugf("Shut down controller")
 	}()
 
+	end.Add(1)
 	go func() {
+		defer end.Done()
 		for h := range q.housekeeping {
 			q.removeHandler(h)
 		}
+		log.Debugf("Closed all handlers")
 	}()
 
+	end.Add(1)
 	go func() {
+		defer end.Done()
 		// Listen for messages to send until all handlers AND a shutdown happened.
 		for mts := range q.handlerChan {
 			m, err := q.protocol.Marshal(mts.JobID, mts.Body)
@@ -185,6 +196,7 @@ func (q *Controller) Start() {
 				}
 			}
 		}
+		log.Debugf("Sent all pending messages")
 	}()
 
 	chans := make([]<-chan amqp.Delivery, len(q.rcvFrom))
@@ -205,7 +217,7 @@ mainloop:
 		chosen, value, ok := reflect.Select(cases)
 		if !ok {
 			// At this point, all queues are closed and no messages are in flight
-			log.Errorf("Closed Queue %s, exiting loop as all Queues are needed.", q.rcvFrom[chosen].ExternalName)
+			log.Infof("Closed Queue %s, exiting loop as all Queues are needed.", q.rcvFrom[chosen].ExternalName)
 			break mainloop
 		}
 		d, ok := value.Interface().(amqp.Delivery)
@@ -234,9 +246,12 @@ mainloop:
 			Message:  dm,
 		}
 	}
-
+	log.Debugf("Ending main loop")
 	// We have sent everything in flight, finalize the handlers
 	q.SignalNoMoreMessages()
+
+	end.Wait()
+	log.Debugf("Finalized main loop for handler")
 }
 
 func (q *Controller) SignalNoMoreMessages() {

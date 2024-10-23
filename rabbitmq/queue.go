@@ -51,7 +51,7 @@ func (q *Queue) Consume() <-chan amqp.Delivery {
 
 	messages, err := q.Channel.Consume(
 		q.Name,
-		"",
+		q.Name,
 		false,
 		false,
 		false,
@@ -63,6 +63,7 @@ func (q *Queue) Consume() <-chan amqp.Delivery {
 		term := make(chan os.Signal, 1)
 		signal.Notify(term, syscall.SIGTERM)
 		<-term
+		log.Debugf("Cancelling channel for queue %s", q.Name)
 		q.Channel.Cancel(q.Name, false)
 	}()
 

@@ -35,8 +35,12 @@ var controllerFactories = map[string]ControllerFactory{
 }
 
 func main() {
+	if err := common.InitLogger("DEBUG"); err != nil {
+		log.Criticalf("%s", err)
+	}
 	var arcCfg = rabbitmq.LoadConfig("./architecture.yaml")
 	var arc = rabbitmq.CreateArchitecture(arcCfg)
+	defer arc.Close()
 	var _, err = common.InitConfig("./common.yaml")
 	var controllersConfig = LoadConfig("./controllers.yaml")
 	if err != nil {
@@ -54,7 +58,9 @@ func main() {
 
 		go func(cfg ControllerConfig) {
 			defer wg.Done()
+			log.Debugf("Started with controller for %s", cfg.Type)
 			c(&cfg, arcCfg, arc).Start()
+			log.Debugf("Finished with controller for %s", cfg.Type)
 		}(controllerConfig)
 
 	}

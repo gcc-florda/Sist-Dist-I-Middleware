@@ -80,6 +80,8 @@ func (h *HandlerRuntime) Start() {
 			}
 		}
 	}
+
+	log.Debug("Finalized runtime for handler for %s", h.JobId.String())
 }
 
 func (h *HandlerRuntime) Finish() {
