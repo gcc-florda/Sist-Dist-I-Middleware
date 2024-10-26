@@ -3,5 +3,5 @@ controllers:
     readFromPartition: 1 # This is from what partition do I read. The partition amounts is in the architecture config
   - type: "Q1S2"
     readFromPartition: 1
-  # - type: "Q1S3"
-  #   readFromPartition: 1 # For any Stage 3, this should always be one
+  - type: "Q1S3"
+    readFromPartition: 1 # For any Stage 3, this should always be one

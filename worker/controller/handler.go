@@ -65,6 +65,7 @@ func (h *HandlerRuntime) Start() {
 		} else {
 			eof, err := EOFMessageFromBytes(msg.Message.Data())
 			if err != nil {
+				log.Debugf("Esploto cuando llego el EOF porque no se parseo %s", err)
 				msg.Delivery.Nack(false, true)
 			}
 			h.eofs.Update(eof.TokenName)

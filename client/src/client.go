@@ -129,6 +129,7 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 
 		if err == io.EOF {
 			c.SendBatch(lastBatch)
+			common.Send(pathType+",EOF", c.Connection)
 			time.Sleep(c.Config.BatchSleep)
 			break
 		}

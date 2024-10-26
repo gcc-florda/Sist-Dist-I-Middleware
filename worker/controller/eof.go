@@ -50,6 +50,7 @@ func EOFMessageDeserialize(d *common.Deserializer) (*EOFMessage, error) {
 	if !enums.IsValidTokenName(t) {
 		return nil, errors.New("the given token name is invalid")
 	}
+	log.Debugf("Deserializando EOF del tipo %s", enums.TokenName(t))
 	return &EOFMessage{
 		TokenName: enums.TokenName(t),
 	}, nil
@@ -100,11 +101,14 @@ func (e *EOFState) Read(token enums.TokenName) uint {
 func (e *EOFState) saveState() error {
 	data, err := json.MarshalIndent(e.Received, "", "  ")
 	if err != nil {
+		log.Debugf("Esploto cuando queria serializar los datos del EOF")
 		return err
 	}
+	log.Debugf("Guardando datos del EOF, %s", data)
 
 	_, err = e.storage.Overwrite(data)
 	if err != nil {
+		log.Debugf("Esploto cuando queria guardar datos del EOF")
 		return err
 	}
 
@@ -161,11 +165,13 @@ func (c *EOFChecker) AddCondition(s enums.TokenName, n uint) *EOFChecker {
 }
 
 func (c *EOFChecker) Finish(receivedEOFs map[enums.TokenName]uint) (*EOFMessage, bool) {
+	log.Debugf("necesito %s, llegaron: %s", c.Needed, receivedEOFs)
 	for k := range c.Needed {
 		if receivedEOFs[k] < c.Needed[k] {
 			return nil, false
 		}
 	}
+	log.Debugf("")
 	return &EOFMessage{
 		TokenName: c.ToSend,
 	}, true

@@ -1,12 +1,14 @@
 package src
 
 import (
+	"encoding/binary"
 	"fmt"
 	"middleware/common"
 	"middleware/rabbitmq"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/op/go-logging"
@@ -84,12 +86,31 @@ func (s *Server) HandleConnection(client *Client) {
 		copy(send[1:], mb)
 
 		if rk == common.RoutingGames {
+			var eoftt uint32 = 0
+			a := make([]byte, 4)
+			binary.BigEndian.PutUint32(a, eoftt)
 			send[0] = common.Type_Game
-
-			s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+			if strings.Contains(message, "EOF") {
+				log.Debugf("Received a GAMES type message - EOF")
+				s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Control, a))
+			} else {
+				log.Debugf("Received a GAMES type message - DATA")
+				s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+			}
+			log.Debugf("Forwarded to ExchangeNameGames")
 		} else if rk == common.RoutingReviews {
+			var eoftt uint32 = 1
+			a := make([]byte, 4)
+			binary.BigEndian.PutUint32(a, eoftt)
 			send[0] = common.Type_Review
-			s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+			if strings.Contains(message, "EOF") {
+				log.Debugf("Recieved a REVIEWS type message - EOF")
+				s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Control, a))
+			} else {
+				log.Debugf("Recieved a REVIEWS type message - DATA")
+				s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+			}
+			log.Debugf("Forwarded to ExchangeNameReviews")
 		}
 
 	}

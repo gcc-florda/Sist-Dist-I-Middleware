@@ -24,6 +24,7 @@ func (p *NodeProtocol) Marshal(j common.JobID, d common.Serializable) (common.Se
 	t := ProtocolMessage_Data
 	if IsEOF(d) {
 		t = ProtocolMessage_Control
+		log.Debug("Escribo un EOF")
 		return common.NewMessage(j, t, d.Serialize()), nil
 	}
 	data, err := schema.MarshalMessage(d)
