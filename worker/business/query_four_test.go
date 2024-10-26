@@ -3,6 +3,7 @@ package business_test
 import (
 	"middleware/common"
 	"middleware/worker/business"
+	"middleware/worker/schema"
 	"testing"
 
 	"github.com/pemistahl/lingua-go"
@@ -26,7 +27,7 @@ func TestQ4ReviewFilteringEnglish(t *testing.T) {
 	pass := business.Q4FilterReviewsBuilder(func(s string) bool {
 		lang, exists := detector.DetectLanguageOf(s)
 		return exists && lang == lingua.English
-	})(&business.Review{
+	})(&schema.Review{
 		AppID:       "1",
 		AppName:     "test",
 		ReviewText:  "This is a review that is in english",
@@ -50,7 +51,7 @@ func TestQ4ReviewFilteringSpanish(t *testing.T) {
 	pass := business.Q4FilterReviewsBuilder(func(s string) bool {
 		lang, exists := detector.DetectLanguageOf(s)
 		return exists && lang == lingua.English
-	})(&business.Review{
+	})(&schema.Review{
 		AppID:       "1",
 		AppName:     "test",
 		ReviewText:  "Esto es una reseña en español",

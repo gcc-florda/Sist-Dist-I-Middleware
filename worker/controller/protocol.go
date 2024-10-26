@@ -3,6 +3,7 @@ package controller
 import (
 	"hash/fnv"
 	"middleware/common"
+	"middleware/worker/schema"
 	"strconv"
 )
 
@@ -23,8 +24,12 @@ func (p *NodeProtocol) Marshal(j common.JobID, d common.Serializable) (common.Se
 	t := ProtocolMessage_Data
 	if IsEOF(d) {
 		t = ProtocolMessage_Control
+		return common.NewMessage(j, t, d.Serialize()), nil
 	}
-	data := d.Serialize()
+	data, err := schema.MarshalMessage(d)
+	if err != nil {
+		log.Fatalf("There was an error marshalling the message %s", err)
+	}
 	return common.NewMessage(j, t, data), nil
 }
 

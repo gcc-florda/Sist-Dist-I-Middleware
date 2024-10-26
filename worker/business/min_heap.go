@@ -1,9 +1,12 @@
 package business
 
-import "container/heap"
+import (
+	"container/heap"
+	"middleware/worker/schema"
+)
 
 type ReviewWithSource struct {
-	Review NamedReviewCounter
+	Review schema.NamedReviewCounter
 	Index  int
 }
 

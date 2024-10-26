@@ -12,29 +12,30 @@ services:
       timeout: 10s
       retries: 5
 
-  # client:
-  #   build:
-  #     context: .
-  #     dockerfile: ./client/Dockerfile
-  #   depends_on:
-  #     - server
-  #   volumes:
-  #     - ./datasets:/app/datasets
-  #     - ./client/config.yaml:/app/config.yaml
+  client:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    depends_on:
+      - server
+    volumes:
+      - ./datasets:/app/datasets
+      - ./client/config.yaml:/app/config.yaml
 
-  # server:
-  #   build:
-  #     context: .
-  #     dockerfile: ./server/Dockerfile
-  #   ports:
-  #     - "12345:12345"
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   links:
-  #     - rabbitmq
-  #   volumes:
-  #     - ./server/config.yaml:/app/config.yaml
+  server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    ports:
+      - "12345:12345"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./server/config.yaml:/app/config.yaml
 
   worker:
     build:

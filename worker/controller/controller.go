@@ -4,6 +4,7 @@ import (
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
+	"middleware/worker/schema"
 	"os"
 	"os/signal"
 	"reflect"
@@ -27,14 +28,9 @@ type EOFValidator interface {
 	Finish(receivedEOFs map[enums.TokenName]uint) (*EOFMessage, bool)
 }
 type Handler interface {
-	Handle(protocolData []byte) (Partitionable, error)
-	NextStage() (<-chan Partitionable, <-chan error)
+	Handle(protocolData []byte) (schema.Partitionable, error)
+	NextStage() (<-chan schema.Partitionable, <-chan error)
 	Shutdown(delete bool)
-}
-
-type Partitionable interface {
-	common.Serializable
-	PartitionKey() string
 }
 
 type Protocol interface {
@@ -108,13 +104,13 @@ func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Pro
 func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 	v, ok := q.handlers[j]
 	if !ok {
-		v, eof, err := q.factory(j)
+		h, eof, err := q.factory(j)
 		if err != nil {
 			return nil, err
 		}
 		hr, err := NewHandlerRuntime(
 			j,
-			v,
+			h,
 			eof,
 			q.handlerChan,
 			q.housekeeping,
@@ -123,6 +119,7 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 			return nil, err
 		}
 		q.handlers[j] = hr
+		v = hr
 		q.runtimeWG.Add(1)
 	}
 	return v, nil

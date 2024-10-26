@@ -73,12 +73,17 @@ func NewEOFState(base string, id string) (*EOFState, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	state.storage = s
+
+	if len(b) == 0 {
+		return state, nil
+	}
+
 	err = json.Unmarshal(b, &state.Received)
 	if err != nil {
 		return nil, err
 	}
-
-	state.storage = s
 
 	return state, nil
 }

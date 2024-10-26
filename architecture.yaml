@@ -1,6 +1,6 @@
 map_filter:
   query_one_games:
-    partition_amount: 3
+    partition_amount: 1
   query_two_games:
     partition_amount: 3
   query_three_games:
@@ -18,7 +18,7 @@ map_filter:
 
 query_one:
   stage_two:
-    partition_amount: 3
+    partition_amount: 1
   stage_three:
     partition_amount: 1
 

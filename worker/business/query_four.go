@@ -2,19 +2,19 @@ package business
 
 import (
 	"middleware/common"
-	"middleware/worker/controller"
+	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 )
 
 type DetectLanguage func(string) bool
 
-func Q4FilterGames(r *Game) bool {
+func Q4FilterGames(r *schema.Game) bool {
 	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.four.category"))
 }
 
 func Q4FilterReviewsBuilder(isLanguage DetectLanguage) FilterReview {
-	return func(r *Review) bool {
+	return func(r *schema.Review) bool {
 		if common.Config.GetBool("query.four.positive") {
 			return r.ReviewScore > 0 && isLanguage(r.ReviewText)
 		}
@@ -23,15 +23,15 @@ func Q4FilterReviewsBuilder(isLanguage DetectLanguage) FilterReview {
 
 }
 
-func Q4MapGames(r *Game) controller.Partitionable {
-	return &GameName{
+func Q4MapGames(r *schema.Game) schema.Partitionable {
+	return &schema.GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q4MapReviews(r *Review) controller.Partitionable {
-	return &ValidReview{
+func Q4MapReviews(r *schema.Review) schema.Partitionable {
+	return &schema.ValidReview{
 		AppID: r.AppID,
 	}
 }
@@ -61,7 +61,7 @@ func NewQ4(base string, id string, over int, bufSize int) (*Q4, error) {
 	}, nil
 }
 
-func (q *Q4) Insert(rc *NamedReviewCounter) error {
+func (q *Q4) Insert(rc *schema.NamedReviewCounter) error {
 	if rc.Count > uint32(q.state.Over) {
 		_, err := q.storage.Append(rc.Serialize())
 		if err != nil {
@@ -71,8 +71,8 @@ func (q *Q4) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q4) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	cr := make(chan controller.Partitionable, q.state.bufSize)
+func (q *Q4) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	cr := make(chan schema.Partitionable, q.state.bufSize)
 	ce := make(chan error, 1)
 
 	go func() {
@@ -90,7 +90,7 @@ func (q *Q4) NextStage() (<-chan controller.Partitionable, <-chan error) {
 		for s.Scan() {
 			b := s.Bytes()
 			d := common.NewDeserializer(b)
-			nrc, err := NamedReviewCounterDeserialize(&d)
+			nrc, err := schema.NamedReviewCounterDeserialize(&d)
 			if err != nil {
 				ce <- err
 				return
@@ -108,15 +108,15 @@ func (q *Q4) NextStage() (<-chan controller.Partitionable, <-chan error) {
 	return cr, ce
 }
 
-func (q *Q4) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (q *Q4) Handle(protocolData []byte) (schema.Partitionable, error) {
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return nil, q.Insert(p.(*NamedReviewCounter))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.NamedReviewCounter{}) {
+		return nil, q.Insert(p.(*schema.NamedReviewCounter))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
 func (q *Q4) Shutdown(delete bool) {

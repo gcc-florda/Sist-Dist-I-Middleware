@@ -2,7 +2,7 @@ package business
 
 import (
 	"middleware/common"
-	"middleware/worker/controller"
+	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 )
@@ -37,7 +37,7 @@ func NewJoin(base string, query string, id string, bufSize int) (*Join, error) {
 	}, nil
 }
 
-func (q *Join) AddReview(r *ValidReview) error {
+func (q *Join) AddReview(r *schema.ValidReview) error {
 	err := q.addReview(r.AppID)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func (q *Join) AddReview(r *ValidReview) error {
 	return nil
 }
 
-func (q *Join) AddGame(r *GameName) error {
+func (q *Join) AddGame(r *schema.GameName) error {
 	_, err := q.gameStorage.Append(r.Serialize())
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (q *Join) addReview(appId string) error {
 		b := scanner.Bytes()
 		lb := len(b) + 1
 		d := common.NewDeserializer(b)
-		l, err := ReviewCounterDeserialize(&d)
+		l, err := schema.ReviewCounterDeserialize(&d)
 		if err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func (q *Join) addReview(appId string) error {
 	}
 
 	// We got here because we didn't find the review already written
-	c := &ReviewCounter{
+	c := &schema.ReviewCounter{
 		AppID: appId,
 		Count: 1,
 	}
@@ -115,9 +115,9 @@ func (q *Join) addReview(appId string) error {
 	return nil
 }
 
-func (q *Join) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	cache := common.NewJoinCache[string, *ReviewCounter](q.state.bufSize)
-	cr := make(chan controller.Partitionable, q.state.bufSize)
+func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	cache := common.NewJoinCache[string, *schema.ReviewCounter](q.state.bufSize)
+	cr := make(chan schema.Partitionable, q.state.bufSize)
 	ce := make(chan error, 1)
 	go func() {
 		defer close(cr)
@@ -136,11 +136,11 @@ func (q *Join) NextStage() (<-chan controller.Partitionable, <-chan error) {
 			return
 		}
 
-		nextReview := func() (*ReviewCounter, error) {
+		nextReview := func() (*schema.ReviewCounter, error) {
 			if rss.Scan() {
 				b := rss.Bytes()
 				d := common.NewDeserializer(b)
-				r, err := ReviewCounterDeserialize(&d)
+				r, err := schema.ReviewCounterDeserialize(&d)
 				if err != nil {
 					return nil, err
 				}
@@ -149,11 +149,11 @@ func (q *Join) NextStage() (<-chan controller.Partitionable, <-chan error) {
 			return nil, nil
 		}
 
-		tryJoin := func(g *GameName) error {
+		tryJoin := func(g *schema.GameName) error {
 			v, ok := cache.Get(g.AppID)
 			if ok {
 				cache.Remove(g.AppID)
-				nrc := &NamedReviewCounter{
+				nrc := &schema.NamedReviewCounter{
 					Name:  g.Name,
 					Count: v.Count,
 				}
@@ -170,7 +170,7 @@ func (q *Join) NextStage() (<-chan controller.Partitionable, <-chan error) {
 				}
 
 				if r.AppID == g.AppID {
-					nrc := &NamedReviewCounter{
+					nrc := &schema.NamedReviewCounter{
 						Name:  g.Name,
 						Count: r.Count,
 					}
@@ -188,7 +188,7 @@ func (q *Join) NextStage() (<-chan controller.Partitionable, <-chan error) {
 
 			b := gss.Bytes()
 			d := common.NewDeserializer(b)
-			gn, err := GameNameDeserialize(&d)
+			gn, err := schema.GameNameDeserialize(&d)
 			if err != nil {
 				ce <- err
 				return
@@ -204,19 +204,19 @@ func (q *Join) NextStage() (<-chan controller.Partitionable, <-chan error) {
 	return cr, ce
 }
 
-func (q *Join) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (q *Join) Handle(protocolData []byte) (schema.Partitionable, error) {
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&ValidReview{}) {
-		return nil, q.AddReview(p.(*ValidReview))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.ValidReview{}) {
+		return nil, q.AddReview(p.(*schema.ValidReview))
 	}
 
-	if reflect.TypeOf(p) == reflect.TypeOf(&GameName{}) {
-		return nil, q.AddGame(p.(*GameName))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.GameName{}) {
+		return nil, q.AddGame(p.(*schema.GameName))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
 func (q *Join) Shutdown(delete bool) {

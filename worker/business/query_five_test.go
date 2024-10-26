@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"middleware/common"
 	"middleware/worker/business"
+	"middleware/worker/schema"
 	"path/filepath"
 	"testing"
 
@@ -16,12 +17,12 @@ func FatalOnError(err error, t *testing.T, message string) {
 	}
 }
 
-func CreateRandomBatch(n int, idx int) *business.NamedReviewBatch {
-	batch := business.NewNamedReviewBatch("temp", "99", idx)
+func CreateRandomBatch(n int, idx int) *schema.NamedReviewBatch {
+	batch := schema.NewNamedReviewBatch("temp", "99", idx)
 
 	for i := 0; i < n; i++ {
 		count := uint32(rand.Intn(1000))
-		batch.Add(&business.NamedReviewCounter{
+		batch.Add(&schema.NamedReviewCounter{
 			Name:  fmt.Sprintf("[%d] - Game N° %d - %d", idx, i, count),
 			Count: count,
 		})
@@ -30,12 +31,12 @@ func CreateRandomBatch(n int, idx int) *business.NamedReviewBatch {
 	return batch
 }
 
-func CreateRandomBatchSorted(n int, idx int) (*business.NamedReviewBatch, *common.TemporaryStorage, error) {
-	batch := business.NewNamedReviewBatch("temp", "99", idx)
+func CreateRandomBatchSorted(n int, idx int) (*schema.NamedReviewBatch, *common.TemporaryStorage, error) {
+	batch := schema.NewNamedReviewBatch("temp", "99", idx)
 
 	for i := 0; i < n; i++ {
 		count := uint32(rand.Intn(1000))
-		batch.Add(&business.NamedReviewCounter{
+		batch.Add(&schema.NamedReviewCounter{
 			Name:  fmt.Sprintf("[%d] - Game N° %d - %d", idx, i, count),
 			Count: count,
 		})
@@ -68,7 +69,7 @@ func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		d := common.NewDeserializer(line)
-		lineDes, err := business.NamedReviewCounterDeserialize(&d)
+		lineDes, err := schema.NamedReviewCounterDeserialize(&d)
 		FatalOnError(err, t, fmt.Sprintf("Cannot deserialize review: %s", line))
 
 		if lastReviewCount == -1 {
@@ -86,7 +87,7 @@ func TestQ5Insert(t *testing.T) {
 
 	q5.Storage.Overwrite([]byte{})
 
-	game := business.NamedReviewCounter{
+	game := schema.NamedReviewCounter{
 		Name:  "Game N° 1!",
 		Count: 1,
 	}
@@ -100,7 +101,7 @@ func TestQ5Insert(t *testing.T) {
 		line := scanner.Bytes()
 
 		d := common.NewDeserializer(line)
-		lineDes, err := business.NamedReviewCounterDeserialize(&d)
+		lineDes, err := schema.NamedReviewCounterDeserialize(&d)
 		FatalOnError(err, t, "Cannot deserialize review")
 
 		if lineDes.Name != game.Name || lineDes.Count != game.Count {
@@ -154,7 +155,7 @@ func TestQ5PushAtIdx1Row(t *testing.T) {
 	business.PushHeapAtIdx(h, reader, 0)
 
 	d := common.NewDeserializer(reader.Bytes())
-	firstRow, err := business.NamedReviewCounterDeserialize(&d)
+	firstRow, err := schema.NamedReviewCounterDeserialize(&d)
 	FatalOnError(err, t, "Cannot deserialize review")
 
 	t.Logf("First row: %v", firstRow)
@@ -215,7 +216,7 @@ func TestQ5CalculateP90(t *testing.T) {
 	q5.Storage.Overwrite([]byte{})
 
 	for i := 100; i > 0; i-- {
-		q5.Insert(&business.NamedReviewCounter{
+		q5.Insert(&schema.NamedReviewCounter{
 			Name:  fmt.Sprintf("Game N° %d", i),
 			Count: uint32(i),
 		})

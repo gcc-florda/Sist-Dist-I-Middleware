@@ -53,6 +53,7 @@ func (c *Client) HandleShutdown() {
 }
 
 func (c *Client) CreateSocket() {
+	time.Sleep(5 * time.Second)
 	conn, err := net.Dial("tcp", c.Config.ServerAddress)
 	common.FailOnError(err, "Failed to connect to server")
 	c.Connection = conn

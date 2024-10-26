@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"middleware/common"
 	"middleware/worker/business"
+	"middleware/worker/schema"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,17 +27,17 @@ func recreateFiles() {
 	if err != nil {
 		panic("Error creating files")
 	}
-	gts.AppendLine((&business.GameName{
+	gts.AppendLine((&schema.GameName{
 		AppID: "1",
 		Name:  "Test_1",
 	}).Serialize())
 
-	gts.AppendLine((&business.GameName{
+	gts.AppendLine((&schema.GameName{
 		AppID: "3",
 		Name:  "Test_3",
 	}).Serialize())
 
-	gts.AppendLine((&business.GameName{
+	gts.AppendLine((&schema.GameName{
 		AppID: "4",
 		Name:  "Test_4",
 	}).Serialize())
@@ -47,22 +48,22 @@ func recreateFiles() {
 	if err != nil {
 		panic("Error creating files")
 	}
-	rts.AppendLine((&business.ReviewCounter{
+	rts.AppendLine((&schema.ReviewCounter{
 		AppID: "1",
 		Count: 5,
 	}).Serialize())
 
-	rts.AppendLine((&business.ReviewCounter{
+	rts.AppendLine((&schema.ReviewCounter{
 		AppID: "2",
 		Count: 50,
 	}).Serialize())
 
-	rts.AppendLine((&business.ReviewCounter{
+	rts.AppendLine((&schema.ReviewCounter{
 		AppID: "3",
 		Count: 55,
 	}).Serialize())
 
-	rts.AppendLine((&business.ReviewCounter{
+	rts.AppendLine((&schema.ReviewCounter{
 		AppID: "4",
 		Count: 500,
 	}).Serialize())
@@ -93,8 +94,8 @@ loop:
 				break loop
 			}
 
-			v, ok := expected[msg.(*business.NamedReviewCounter).Name]
-			if !ok || v != msg.(*business.NamedReviewCounter).Count {
+			v, ok := expected[msg.(*schema.NamedReviewCounter).Name]
+			if !ok || v != msg.(*schema.NamedReviewCounter).Count {
 				t.Fatal("Unknown")
 			}
 		case msg, ok := <-ce:
@@ -118,37 +119,37 @@ func TestJoinAddReview(t *testing.T) {
 	expected_3 := 5
 
 	for i := 0; i < 3; i++ {
-		j.AddReview(&business.ValidReview{
+		j.AddReview(&schema.ValidReview{
 			AppID: "1",
 		})
 	}
 
 	for i := 0; i < 2; i++ {
-		j.AddReview(&business.ValidReview{
+		j.AddReview(&schema.ValidReview{
 			AppID: "2",
 		})
 	}
 
 	for i := 0; i < 3; i++ {
-		j.AddReview(&business.ValidReview{
+		j.AddReview(&schema.ValidReview{
 			AppID: "3",
 		})
 	}
 
 	for i := 0; i < 3; i++ {
-		j.AddReview(&business.ValidReview{
+		j.AddReview(&schema.ValidReview{
 			AppID: "1",
 		})
 	}
 
 	for i := 0; i < 1; i++ {
-		j.AddReview(&business.ValidReview{
+		j.AddReview(&schema.ValidReview{
 			AppID: "2",
 		})
 	}
 
 	for i := 0; i < 2; i++ {
-		j.AddReview(&business.ValidReview{
+		j.AddReview(&schema.ValidReview{
 			AppID: "3",
 		})
 	}
@@ -159,7 +160,7 @@ func TestJoinAddReview(t *testing.T) {
 	for s.Scan() {
 		b := s.Bytes()
 		d := common.NewDeserializer(b)
-		r, _ := business.ReviewCounterDeserialize(&d)
+		r, _ := schema.ReviewCounterDeserialize(&d)
 
 		if r.AppID == "1" && expected_1 != int(r.Count) {
 			t.Fatalf("Wrong Count")

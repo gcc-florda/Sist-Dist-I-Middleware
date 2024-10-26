@@ -1,23 +1,23 @@
 package business
 
 import (
-	"middleware/worker/controller"
+	"middleware/worker/schema"
 	"reflect"
 )
 
-type FilterGame func(*Game) bool
-type MapGame func(*Game) controller.Partitionable
+type FilterGame func(*schema.Game) bool
+type MapGame func(*schema.Game) schema.Partitionable
 
-type FilterReview func(*Review) bool
-type MapReview func(*Review) controller.Partitionable
+type FilterReview func(*schema.Review) bool
+type MapReview func(*schema.Review) schema.Partitionable
 
 type MapFilterGames struct {
 	Filter FilterGame
 	Mapper MapGame
 }
 
-func (mf *MapFilterGames) Do(g *Game) (controller.Partitionable, error) {
-	if mf.Filter != nil {
+func (mf *MapFilterGames) Do(g *schema.Game) (schema.Partitionable, error) {
+	if mf.Filter == nil {
 		return mf.Mapper(g), nil
 	}
 	ok := mf.Filter(g)
@@ -27,19 +27,19 @@ func (mf *MapFilterGames) Do(g *Game) (controller.Partitionable, error) {
 	return mf.Mapper(g), nil
 }
 
-func (mf *MapFilterGames) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (mf *MapFilterGames) Handle(protocolData []byte) (schema.Partitionable, error) {
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&Game{}) {
-		return mf.Do(p.(*Game))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.Game{}) {
+		return mf.Do(p.(*schema.Game))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
-func (mf *MapFilterGames) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	cr := make(chan controller.Partitionable, 1)
+func (mf *MapFilterGames) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	cr := make(chan schema.Partitionable, 1)
 	ce := make(chan error, 1)
 	go func() {
 		defer close(cr)
@@ -58,7 +58,7 @@ type MapFilterReviews struct {
 	Mapper MapReview
 }
 
-func (mf *MapFilterReviews) Do(r *Review) (controller.Partitionable, error) {
+func (mf *MapFilterReviews) Do(r *schema.Review) (schema.Partitionable, error) {
 	ok := mf.Filter(r)
 	if !ok {
 		return nil, nil
@@ -66,19 +66,19 @@ func (mf *MapFilterReviews) Do(r *Review) (controller.Partitionable, error) {
 	return mf.Mapper(r), nil
 }
 
-func (mf *MapFilterReviews) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (mf *MapFilterReviews) Handle(protocolData []byte) (schema.Partitionable, error) {
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&Review{}) {
-		return mf.Do(p.(*Review))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.Review{}) {
+		return mf.Do(p.(*schema.Review))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
-func (mf *MapFilterReviews) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	cr := make(chan controller.Partitionable, 1)
+func (mf *MapFilterReviews) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	cr := make(chan schema.Partitionable, 1)
 	ce := make(chan error, 1)
 	go func() {
 		defer close(cr)

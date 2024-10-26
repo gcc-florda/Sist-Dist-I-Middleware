@@ -2,7 +2,7 @@ package business
 
 import (
 	"middleware/common"
-	"middleware/worker/controller"
+	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -22,7 +22,7 @@ func extractDecade(s string) (int, error) {
 	return year / 10 * 10, nil
 }
 
-func Q3FilterGames(r *Game) bool {
+func Q3FilterGames(r *schema.Game) bool {
 	decade, err := extractDecade(r.ReleaseDate)
 	if err != nil {
 		log.Error("Can't extract decade from: %s", r.ReleaseDate)
@@ -31,28 +31,28 @@ func Q3FilterGames(r *Game) bool {
 	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.three.category")) && decade == common.Config.GetInt("query.three.decade")
 }
 
-func Q3FilterReviews(r *Review) bool {
+func Q3FilterReviews(r *schema.Review) bool {
 	if common.Config.GetBool("query.three.positive") {
 		return r.ReviewScore > 0
 	}
 	return r.ReviewScore < 0
 }
 
-func Q3MapGames(r *Game) controller.Partitionable {
-	return &GameName{
+func Q3MapGames(r *schema.Game) schema.Partitionable {
+	return &schema.GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q3MapReviews(r *Review) controller.Partitionable {
-	return &ValidReview{
+func Q3MapReviews(r *schema.Review) schema.Partitionable {
+	return &schema.ValidReview{
 		AppID: r.AppID,
 	}
 }
 
 type Q3State struct {
-	Top []*NamedReviewCounter
+	Top []*schema.NamedReviewCounter
 	N   int
 }
 
@@ -97,17 +97,17 @@ func NewQ3(base string, id string, top int) (*Q3, error) {
 	}, nil
 }
 
-func q3StateFromBytes(data []byte) ([]*NamedReviewCounter, error) {
+func q3StateFromBytes(data []byte) ([]*schema.NamedReviewCounter, error) {
 	if len(data) == 0 {
-		return make([]*NamedReviewCounter, 0), nil
+		return make([]*schema.NamedReviewCounter, 0), nil
 	}
 
 	d := common.NewDeserializer(data)
 
-	return common.ReadArray(&d, NamedReviewCounterDeserialize)
+	return common.ReadArray(&d, schema.NamedReviewCounterDeserialize)
 }
 
-func (q *Q3) Insert(rc *NamedReviewCounter) error {
+func (q *Q3) Insert(rc *schema.NamedReviewCounter) error {
 	q.state.Top = append(q.state.Top, rc)
 
 	sort.Slice(q.state.Top, func(i, j int) bool {
@@ -127,8 +127,8 @@ func (q *Q3) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q3) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	ch := make(chan controller.Partitionable, q.state.N)
+func (q *Q3) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	ch := make(chan schema.Partitionable, q.state.N)
 	ce := make(chan error, 1)
 
 	go func() {
@@ -143,15 +143,15 @@ func (q *Q3) NextStage() (<-chan controller.Partitionable, <-chan error) {
 	return ch, ce
 }
 
-func (q *Q3) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (q *Q3) Handle(protocolData []byte) (schema.Partitionable, error) {
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return nil, q.Insert(p.(*NamedReviewCounter))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.NamedReviewCounter{}) {
+		return nil, q.Insert(p.(*schema.NamedReviewCounter))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
 func (q *Q3) Shutdown(delete bool) {

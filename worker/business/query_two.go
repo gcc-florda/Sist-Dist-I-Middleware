@@ -2,25 +2,25 @@ package business
 
 import (
 	"middleware/common"
-	"middleware/worker/controller"
+	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 	"sort"
 )
 
-func Q2Filter(r *Game) bool {
+func Q2Filter(r *schema.Game) bool {
 	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.two.category"))
 }
 
-func Q2Map(r *Game) controller.Partitionable {
-	return &PlayedTime{
+func Q2Map(r *schema.Game) schema.Partitionable {
+	return &schema.PlayedTime{
 		AveragePlaytimeForever: r.AveragePlaytimeForever,
 		Name:                   r.Name,
 	}
 }
 
 type Q2State struct {
-	Top []*PlayedTime
+	Top []*schema.PlayedTime
 	N   int
 }
 
@@ -36,14 +36,14 @@ func (s *Q2State) Serialize() []byte {
 func q2StateFromBytes(data []byte, top int) (*Q2State, error) {
 	if len(data) == 0 {
 		return &Q2State{
-			Top: make([]*PlayedTime, 0, top),
+			Top: make([]*schema.PlayedTime, 0, top),
 			N:   top,
 		}, nil
 	}
 
 	d := common.NewDeserializer(data)
 
-	res, err := common.ReadArray(&d, PlayedTimeDeserialize)
+	res, err := common.ReadArray(&d, schema.PlayedTimeDeserialize)
 
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func NewQ2(base string, stage string, id string, top int) (*Q2, error) {
 	}, nil
 }
 
-func (q *Q2) Insert(games *PlayedTime) error {
+func (q *Q2) Insert(games *schema.PlayedTime) error {
 	q.state.Top = append(q.state.Top, games)
 
 	sort.Slice(q.state.Top, func(i, j int) bool {
@@ -103,8 +103,8 @@ func (q *Q2) Insert(games *PlayedTime) error {
 	return nil
 }
 
-func (q *Q2) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	ch := make(chan controller.Partitionable, q.state.N) //Change this later
+func (q *Q2) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	ch := make(chan schema.Partitionable, q.state.N) //Change this later
 	ce := make(chan error, 1)
 	go func() {
 		defer close(ch)
@@ -118,15 +118,15 @@ func (q *Q2) NextStage() (<-chan controller.Partitionable, <-chan error) {
 	return ch, ce
 }
 
-func (q *Q2) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (q *Q2) Handle(protocolData []byte) (schema.Partitionable, error) {
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&PlayedTime{}) {
-		return nil, q.Insert(p.(*PlayedTime))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.PlayedTime{}) {
+		return nil, q.Insert(p.(*schema.PlayedTime))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
 func (q *Q2) Shutdown(delete bool) {

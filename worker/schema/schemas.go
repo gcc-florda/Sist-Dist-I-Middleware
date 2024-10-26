@@ -1,4 +1,4 @@
-package business
+package schema
 
 import (
 	"encoding/csv"
@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 )
+
+const maxBatchSize = 34 * 1024 * 1024
 
 type Game struct {
 	AppID                   string
@@ -332,17 +334,17 @@ func parseSlice(s string) []string {
 func MarshalMessage(c any) ([]byte, error) {
 	s := common.NewSerializer()
 	switch v := c.(type) {
-	case SOCounter:
+	case *SOCounter:
 		return s.WriteUint8(common.Type_SOCounter).WriteBytes(v.Serialize()).ToBytes(), nil
-	case PlayedTime:
+	case *PlayedTime:
 		return s.WriteUint8(common.Type_PlayedTime).WriteBytes(v.Serialize()).ToBytes(), nil
-	case GameName:
+	case *GameName:
 		return s.WriteUint8(common.Type_GameName).WriteBytes(v.Serialize()).ToBytes(), nil
-	case ValidReview:
+	case *ValidReview:
 		return s.WriteUint8(common.Type_ValidReview).WriteBytes(v.Serialize()).ToBytes(), nil
-	case ReviewCounter:
+	case *ReviewCounter:
 		return s.WriteUint8(common.Type_ReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
-	case NamedReviewCounter:
+	case *NamedReviewCounter:
 		return s.WriteUint8(common.Type_NamedReviewCounter).WriteBytes(v.Serialize()).ToBytes(), nil
 	}
 	return nil, &UnknownTypeError{}

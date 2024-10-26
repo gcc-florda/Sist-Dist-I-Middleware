@@ -3,15 +3,16 @@ package business_test
 import (
 	"container/heap"
 	"middleware/worker/business"
+	"middleware/worker/schema"
 	"testing"
 )
 
 func TestMinHeap_Push(t *testing.T) {
 	h := business.NewHeap()
 
-	heap.Push(h, business.ReviewWithSource{Review: business.NamedReviewCounter{Count: 5}})
-	heap.Push(h, business.ReviewWithSource{Review: business.NamedReviewCounter{Count: 3}})
-	heap.Push(h, business.ReviewWithSource{Review: business.NamedReviewCounter{Count: 8}})
+	heap.Push(h, business.ReviewWithSource{Review: schema.NamedReviewCounter{Count: 5}})
+	heap.Push(h, business.ReviewWithSource{Review: schema.NamedReviewCounter{Count: 3}})
+	heap.Push(h, business.ReviewWithSource{Review: schema.NamedReviewCounter{Count: 8}})
 
 	if h.Len() != 3 {
 		t.Fatalf("Expected 3, got %d elements pushed", h.Len())
@@ -25,9 +26,9 @@ func TestMinHeap_Push(t *testing.T) {
 func TestMinHeap_Pop(t *testing.T) {
 	h := business.NewHeap()
 
-	heap.Push(h, business.ReviewWithSource{Review: business.NamedReviewCounter{Count: 5}})
-	heap.Push(h, business.ReviewWithSource{Review: business.NamedReviewCounter{Count: 3}})
-	heap.Push(h, business.ReviewWithSource{Review: business.NamedReviewCounter{Count: 8}})
+	heap.Push(h, business.ReviewWithSource{Review: schema.NamedReviewCounter{Count: 5}})
+	heap.Push(h, business.ReviewWithSource{Review: schema.NamedReviewCounter{Count: 3}})
+	heap.Push(h, business.ReviewWithSource{Review: schema.NamedReviewCounter{Count: 8}})
 
 	min := heap.Pop(h).(business.ReviewWithSource)
 	if min.Review.Count != 3 {

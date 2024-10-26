@@ -2,31 +2,31 @@ package business
 
 import (
 	"middleware/common"
-	"middleware/worker/controller"
+	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 )
 
-func Q1Map(r *Game) controller.Partitionable {
-	return &SOCounter{
+func Q1Map(r *schema.Game) schema.Partitionable {
+	return &schema.SOCounter{
 		Windows: boolToCounter(r.Windows),
 		Linux:   boolToCounter(r.Linux),
 		Mac:     boolToCounter(r.Mac),
 	}
 }
 
-func q1StateFromBytes(data []byte) (*SOCounter, error) {
+func q1StateFromBytes(data []byte) (*schema.SOCounter, error) {
 	if len(data) == 0 {
-		return &SOCounter{}, nil
+		return &schema.SOCounter{}, nil
 	}
 
 	d := common.NewDeserializer(data)
 
-	return SOCounterDeserialize(&d)
+	return schema.SOCounterDeserialize(&d)
 }
 
 type Q1 struct {
-	state   *SOCounter
+	state   *schema.SOCounter
 	storage *common.TemporaryStorage
 }
 
@@ -55,13 +55,15 @@ func NewQ1(base string, id string, stage string) (*Q1, error) {
 	}, nil
 }
 
-func (q *Q1) Count(r *SOCounter) error {
+func (q *Q1) Count(r *schema.SOCounter) error {
 	q.state.Windows += r.Windows
 	q.state.Linux += r.Linux
 	q.state.Mac += r.Mac
 
+	log.Debugf("Saving state")
 	_, err := q.storage.SaveState(q.state)
 	if err != nil {
+		log.Debugf("Error saving state")
 		return err
 	}
 	return nil
@@ -74,8 +76,8 @@ func boolToCounter(b bool) uint32 {
 	return 0
 }
 
-func (q *Q1) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	ch := make(chan controller.Partitionable, 1) //Change this later
+func (q *Q1) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	ch := make(chan schema.Partitionable, 1) //Change this later
 	ce := make(chan error, 1)
 
 	go func() {
@@ -88,15 +90,18 @@ func (q *Q1) NextStage() (<-chan controller.Partitionable, <-chan error) {
 	return ch, ce
 }
 
-func (q *Q1) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (q *Q1) Handle(protocolData []byte) (schema.Partitionable, error) {
+	log.Debugf("Handling some message in Q1")
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
+		log.Debugf("Error marshalling Q1")
+
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&SOCounter{}) {
-		return nil, q.Count(p.(*SOCounter))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.SOCounter{}) {
+		return nil, q.Count(p.(*schema.SOCounter))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
 func (q *Q1) Shutdown(delete bool) {

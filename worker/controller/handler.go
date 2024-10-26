@@ -2,6 +2,7 @@ package controller
 
 import (
 	"middleware/common"
+	"middleware/worker/schema"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -81,7 +82,7 @@ func (h *HandlerRuntime) Start() {
 		}
 	}
 
-	log.Debug("Finalized runtime for handler for %s", h.JobId.String())
+	log.Debugf("Finalized runtime for handler for %s", h.JobId.String())
 }
 
 func (h *HandlerRuntime) Finish() {
@@ -125,7 +126,7 @@ sendLoop:
 	return true
 }
 
-func (h *HandlerRuntime) unicast(m Partitionable, d *amqp.Delivery) *messageToSend {
+func (h *HandlerRuntime) unicast(m schema.Partitionable, d *amqp.Delivery) *messageToSend {
 	return &messageToSend{
 		JobID: h.JobId,
 		Routing: routing{
@@ -137,7 +138,7 @@ func (h *HandlerRuntime) unicast(m Partitionable, d *amqp.Delivery) *messageToSe
 	}
 }
 
-func (h *HandlerRuntime) broadcast(m Partitionable) *messageToSend {
+func (h *HandlerRuntime) broadcast(m schema.Partitionable) *messageToSend {
 	return &messageToSend{
 		JobID: h.JobId,
 		Routing: routing{

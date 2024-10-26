@@ -5,7 +5,7 @@ import (
 	"container/heap"
 	"fmt"
 	"middleware/common"
-	"middleware/worker/controller"
+	"middleware/worker/schema"
 	"os"
 
 	"path/filepath"
@@ -17,35 +17,34 @@ import (
 var log = logging.MustGetLogger("log")
 
 // Batch size in bytes (34MB)
-const maxBatchSize = 34 * 1024 * 1024
 
-func Q5FilterGames(r *Game) bool {
+func Q5FilterGames(r *schema.Game) bool {
 	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.five.category"))
 }
 
-func Q5FilterReviews(r *Review) bool {
+func Q5FilterReviews(r *schema.Review) bool {
 	if common.Config.GetBool("query.five.positive") {
 		return r.ReviewScore > 0
 	}
 	return r.ReviewScore < 0
 }
 
-func Q5MapGames(r *Game) controller.Partitionable {
-	return &GameName{
+func Q5MapGames(r *schema.Game) schema.Partitionable {
+	return &schema.GameName{
 		AppID: r.AppID,
 		Name:  r.Name,
 	}
 }
 
-func Q5MapReviews(r *Review) controller.Partitionable {
-	return &ValidReview{
+func Q5MapReviews(r *schema.Review) schema.Partitionable {
+	return &schema.ValidReview{
 		AppID: r.AppID,
 	}
 }
 
 func (q *Q5) Q5Quantile() (int, error) {
 	defer q.deleteTemp()
-	batch := NewNamedReviewBatch(q.Base, q.JobId, 0)
+	batch := schema.NewNamedReviewBatch(q.Base, q.JobId, 0)
 	tempSortedFiles := make([]*common.TemporaryStorage, 0)
 
 	scanner, err := q.Storage.Scanner()
@@ -56,7 +55,7 @@ func (q *Q5) Q5Quantile() (int, error) {
 		line := scanner.Bytes()
 
 		d := common.NewDeserializer(line)
-		gameReview, err := NamedReviewCounterDeserialize(&d)
+		gameReview, err := schema.NamedReviewCounterDeserialize(&d)
 		common.FailOnError(err, "Cannot deserialize review")
 
 		if !batch.CanHandle(gameReview) {
@@ -66,7 +65,7 @@ func (q *Q5) Q5Quantile() (int, error) {
 			}
 			defer tempSortedFile.Close()
 			tempSortedFiles = append(tempSortedFiles, tempSortedFile)
-			batch = NewNamedReviewBatch(q.Base, q.JobId, batch.Index+1)
+			batch = schema.NewNamedReviewBatch(q.Base, q.JobId, batch.Index+1)
 		}
 		batch.Add(gameReview)
 	}
@@ -104,7 +103,7 @@ func (q *Q5) deleteTemp() {
 	}
 }
 
-func SortBatch(batch *NamedReviewBatch, base string, jobId string) (*common.TemporaryStorage, error) {
+func SortBatch(batch *schema.NamedReviewBatch, base string, jobId string) (*common.TemporaryStorage, error) {
 	tempSortedFile, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_five", jobId, "temp", fmt.Sprintf("batch_%d", batch.Index)))
 
 	if err != nil {
@@ -119,7 +118,7 @@ func SortBatch(batch *NamedReviewBatch, base string, jobId string) (*common.Temp
 	return tempSortedFile, nil
 }
 
-func Q5PartialSort(batch *NamedReviewBatch, batchTempFile *common.TemporaryStorage) error {
+func Q5PartialSort(batch *schema.NamedReviewBatch, batchTempFile *common.TemporaryStorage) error {
 	h := NewHeap()
 
 	for _, review := range batch.Reviews {
@@ -156,7 +155,7 @@ func OpenAll(tempSortedFiles []*common.TemporaryStorage) ([]*bufio.Scanner, erro
 func PushHeapAtIdx(h *MinHeap, reader *bufio.Scanner, idx int) error {
 	if reader.Scan() {
 		d := common.NewDeserializer(reader.Bytes())
-		nrc, err := NamedReviewCounterDeserialize(&d)
+		nrc, err := schema.NamedReviewCounterDeserialize(&d)
 		if err != nil {
 			return err
 		}
@@ -238,7 +237,7 @@ func NewQ5(base string, id string, pctOver int, bufSize int) (*Q5, error) {
 	}, nil
 }
 
-func (q *Q5) Insert(rc *NamedReviewCounter) error {
+func (q *Q5) Insert(rc *schema.NamedReviewCounter) error {
 	_, err := q.Storage.AppendLine(rc.Serialize())
 	if err != nil {
 		return err
@@ -247,8 +246,8 @@ func (q *Q5) Insert(rc *NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q5) NextStage() (<-chan controller.Partitionable, <-chan error) {
-	cr := make(chan controller.Partitionable, q.state.bufSize)
+func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
+	cr := make(chan schema.Partitionable, q.state.bufSize)
 	ce := make(chan error, 1)
 
 	go func() {
@@ -274,7 +273,7 @@ func (q *Q5) NextStage() (<-chan controller.Partitionable, <-chan error) {
 		for s.Scan() {
 			b := s.Bytes()
 			d := common.NewDeserializer(b)
-			nrc, err := NamedReviewCounterDeserialize(&d)
+			nrc, err := schema.NamedReviewCounterDeserialize(&d)
 			if err != nil {
 				ce <- err
 				return
@@ -296,15 +295,15 @@ func (q *Q5) NextStage() (<-chan controller.Partitionable, <-chan error) {
 	return cr, ce
 }
 
-func (q *Q5) Handle(protocolData []byte) (controller.Partitionable, error) {
-	p, err := UnmarshalMessage(protocolData)
+func (q *Q5) Handle(protocolData []byte) (schema.Partitionable, error) {
+	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.TypeOf(p) == reflect.TypeOf(&NamedReviewCounter{}) {
-		return nil, q.Insert(p.(*NamedReviewCounter))
+	if reflect.TypeOf(p) == reflect.TypeOf(&schema.NamedReviewCounter{}) {
+		return nil, q.Insert(p.(*schema.NamedReviewCounter))
 	}
-	return nil, &UnknownTypeError{}
+	return nil, &schema.UnknownTypeError{}
 }
 
 func (q *Q5) Shutdown(delete bool) {

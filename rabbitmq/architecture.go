@@ -107,7 +107,7 @@ func createGamePartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *Par
 }
 
 func createReviewPartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *PartitionedExchange {
-	gex := rabbit.NewExchange("MAP_FILTER_GAMES", common.ExchangeDirect)
+	gex := rabbit.NewExchange("MAP_FILTER_REVIEWS", common.ExchangeDirect)
 
 	channels := map[string]*PartitionedQueues{
 		"MFR_Q3": CreatePartitionedQueues(rabbit, gex, "MFR_Q3", cfg.MapFilter.QueryThreeReviews.PartitionAmount),
