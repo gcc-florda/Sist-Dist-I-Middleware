@@ -1,0 +1,10 @@
+client:
+    container_name: client_{{CLIENT_ID}}
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    depends_on:
+      - server
+    volumes:
+      - ./datasets:/app/datasets
+      - ./client/config.yaml:/app/config.yaml
