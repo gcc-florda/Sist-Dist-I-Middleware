@@ -27,6 +27,7 @@ func (p *NodeProtocol) Marshal(j common.JobID, d common.Serializable) (common.Se
 		log.Debug("Escribo un EOF")
 		return common.NewMessage(j, t, d.Serialize()), nil
 	}
+
 	data, err := schema.MarshalMessage(d)
 	if err != nil {
 		log.Fatalf("There was an error marshalling the message %s", err)

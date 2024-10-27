@@ -179,3 +179,14 @@ func CreateResults(rabbit *Rabbit) *Results {
 		QueryFive:  createResult(rabbit, "Q5RESULT"),
 	}
 }
+
+func (r *Results) Consume(ch chan []byte) {
+	q := r.QueryOne.GetQueueSingle(1)
+	chq := q.Consume()
+
+	go func() {
+		for m := range chq {
+			ch <- m.Body
+		}
+	}()
+}

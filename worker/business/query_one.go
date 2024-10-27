@@ -60,7 +60,6 @@ func (q *Q1) Count(r *schema.SOCounter) error {
 	q.state.Linux += r.Linux
 	q.state.Mac += r.Mac
 
-	log.Debugf("Saving state")
 	_, err := q.storage.SaveState(q.state)
 	if err != nil {
 		log.Debugf("Error saving state")

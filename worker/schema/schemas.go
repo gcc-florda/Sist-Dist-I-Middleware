@@ -320,7 +320,7 @@ func setFieldValue(field reflect.Value, value string) error {
 		}
 		field.SetFloat(floatValue)
 	case reflect.Bool:
-		field.SetBool(value == "true")
+		field.SetBool(strings.EqualFold(value, "True"))
 	case reflect.Slice:
 		field.Set(reflect.ValueOf(parseSlice(value)))
 	}

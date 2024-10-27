@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"middleware/common"
 	"middleware/rabbitmq"
+	"middleware/worker/schema"
 	"net"
 	"os"
 	"os/signal"
@@ -24,6 +25,7 @@ type Server struct {
 	Clients         []*Client
 	ExchangeGames   *rabbitmq.Exchange
 	ExchangeReviews *rabbitmq.Exchange
+	Results         *rabbitmq.Results
 }
 
 func NewServer(ip string, port int) *Server {
@@ -37,6 +39,7 @@ func NewServer(ip string, port int) *Server {
 		Clients:         []*Client{},
 		ExchangeGames:   arc.MapFilter.Games.GetExchange(),
 		ExchangeReviews: arc.MapFilter.Reviews.GetExchange(),
+		Results:         arc.Results,
 	}
 
 	signal.Notify(server.Term, syscall.SIGTERM)
@@ -64,6 +67,8 @@ func (s *Server) Start() error {
 		}
 
 		go s.HandleConnection(client)
+
+		go s.HandleResults(client)
 	}
 }
 
@@ -112,8 +117,26 @@ func (s *Server) HandleConnection(client *Client) {
 			}
 			log.Debugf("Forwarded to ExchangeNameReviews")
 		}
-
 	}
+}
+
+func (s *Server) HandleResults(client *Client) {
+	ch := make(chan []byte, 1024)
+
+	s.Results.Consume(ch)
+
+	for message := range ch {
+		m, err := common.MessageFromBytes(message)
+
+		common.FailOnError(err, "Failed to unmarshal message")
+
+		msg, err := schema.UnmarshalMessage(m.Content)
+
+		common.FailOnError(err, "Failed to unmarshal message")
+
+		log.Infof("Received a message: %s", msg)
+	}
+
 }
 
 func (s *Server) HandleShutdown() {

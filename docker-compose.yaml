@@ -35,6 +35,7 @@ services:
       - rabbitmq
     volumes:
       - ./server/config.yaml:/app/config.yaml
+      - ./architecture.yaml:/app/architecture.yaml
 
   worker:
     build:
