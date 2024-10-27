@@ -28,7 +28,7 @@ func Q3FilterGames(r *Game) bool {
 		log.Error("Can't extract decade from: %s", r.ReleaseDate)
 		return false
 	}
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.three.category")) && decade == common.Config.GetInt("query.three.decade")
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.three.category")) && decade == common.Config.GetInt("query.three.decade")
 }
 
 func Q3FilterReviews(r *Review) bool {

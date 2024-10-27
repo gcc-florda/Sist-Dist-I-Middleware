@@ -20,7 +20,7 @@ var log = logging.MustGetLogger("log")
 const maxBatchSize = 34 * 1024 * 1024
 
 func Q5FilterGames(r *Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.five.category"))
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.five.category"))
 }
 
 func Q5FilterReviews(r *Review) bool {

@@ -9,7 +9,7 @@ import (
 )
 
 func Q2Filter(r *Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.two.category"))
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.two.category"))
 }
 
 func Q2Map(r *Game) controller.Partitionable {

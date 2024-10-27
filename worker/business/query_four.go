@@ -10,7 +10,7 @@ import (
 type DetectLanguage func(string) bool
 
 func Q4FilterGames(r *Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.four.category"))
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.four.category"))
 }
 
 func Q4FilterReviewsBuilder(isLanguage DetectLanguage) FilterReview {
