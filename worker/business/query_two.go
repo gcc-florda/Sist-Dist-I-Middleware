@@ -10,7 +10,7 @@ import (
 
 func Q2Filter(r *schema.Game) bool {
 	log.Debugf("Q2F - Query 2: Filtering for %s", r.Name)
-	log.Debugf("Game categories are: %v", r.Genres)
+	log.Debugf("Game genres are: %v", r.Genres)
 	log.Debugf("Config category is: %s", common.Config.GetString("query.two.category"))
 
 	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.two.category"))

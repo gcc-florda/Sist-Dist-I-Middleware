@@ -19,7 +19,7 @@ var log = logging.MustGetLogger("log")
 // Batch size in bytes (34MB)
 
 func Q5FilterGames(r *schema.Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.five.category"))
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.five.category"))
 }
 
 func Q5FilterReviews(r *schema.Review) bool {
