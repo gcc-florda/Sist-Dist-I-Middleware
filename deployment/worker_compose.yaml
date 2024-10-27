@@ -1,0 +1,15 @@
+worker:
+    container_name: node_<<NODE_ID>>
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controllers.yaml:/app/controllers.yaml
+      - ./deployment/controller_node_<<NODE_ID>>.yaml:/app/controllers.yaml

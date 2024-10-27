@@ -26,3 +26,6 @@ go.work.sum
 
 # MACOS
 .DS_Store
+
+configs
+out_compose.yaml

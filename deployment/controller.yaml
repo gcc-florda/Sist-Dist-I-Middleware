@@ -1,0 +1,3 @@
+controllers:
+  - type: "CONTROLLER_NAME"
+    readFromPartition: 1 # This is from what partition do I read. The partition amounts is in the architecture config
