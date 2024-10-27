@@ -9,7 +9,11 @@ import (
 )
 
 func Q2Filter(r *schema.Game) bool {
-	return common.ContainsCaseInsensitive(r.Categories, common.Config.GetString("query.two.category"))
+	log.Debugf("Q2F - Query 2: Filtering for %s", r.Name)
+	log.Debugf("Game categories are: %v", r.Genres)
+	log.Debugf("Config category is: %s", common.Config.GetString("query.two.category"))
+
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.two.category"))
 }
 
 func Q2Map(r *schema.Game) schema.Partitionable {
@@ -107,6 +111,7 @@ func (q *Q2) NextStage() (<-chan schema.Partitionable, <-chan error) {
 	ch := make(chan schema.Partitionable, q.state.N) //Change this later
 	ce := make(chan error, 1)
 	go func() {
+		log.Debugf("Q2NS - Query 2: Sending %d elements", len(q.state.Top))
 		defer close(ch)
 		defer close(ce)
 

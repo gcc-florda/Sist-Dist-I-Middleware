@@ -128,7 +128,14 @@ func (s *Server) HandleResults(client *Client) {
 	for message := range ch {
 		m, err := common.MessageFromBytes(message)
 
+		log.Debugf("Received a message: %s", m)
+
 		common.FailOnError(err, "Failed to unmarshal message")
+
+		if m.IsEOF() {
+			log.Infof("Received EOF message from Results")
+			continue
+		}
 
 		msg, err := schema.UnmarshalMessage(m.Content)
 

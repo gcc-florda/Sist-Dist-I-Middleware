@@ -159,9 +159,7 @@ type Results struct {
 }
 
 func createResult(rabbit *Rabbit, name string) *PartitionedExchange {
-	ex := rabbit.NewExchange(name, common.ExchangeDirect)
-	q := rabbit.NewQueue(name)
-	q.Bind(ex, "")
+	ex := rabbit.NewExchange(name, common.ExchangeFanout)
 	return &PartitionedExchange{
 		exchange: ex,
 		channels: map[string]*PartitionedQueues{
@@ -181,12 +179,24 @@ func CreateResults(rabbit *Rabbit) *Results {
 }
 
 func (r *Results) Consume(ch chan []byte) {
-	q := r.QueryOne.GetQueueSingle(1)
-	chq := q.Consume()
+	log.Info("Consuming results")
 
-	go func() {
-		for m := range chq {
-			ch <- m.Body
-		}
-	}()
+	// q1 := r.QueryOne.GetQueueSingle(1)
+	q2 := r.QueryTwo.GetQueueSingle(1)
+	// q3 := r.QueryThree.GetQueueSingle(1)
+	// q4 := r.QueryFour.GetQueueSingle(1)
+	// q5 := r.QueryFive.GetQueueSingle(1)
+
+	// go r.SendQueryResultToChannel(ch, q1)
+	go r.SendQueryResultToChannel(ch, q2)
+	// go r.SendQueryResultToChannel(ch, q3)
+	// go r.SendQueryResultToChannel(ch, q4)
+	// go r.SendQueryResultToChannel(ch, q5)
+}
+
+func (r *Results) SendQueryResultToChannel(ch chan []byte, q *Queue) {
+	chq := q.Consume()
+	for m := range chq {
+		ch <- m.Body
+	}
 }

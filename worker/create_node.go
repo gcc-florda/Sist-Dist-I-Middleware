@@ -15,7 +15,7 @@ func LoadConfig(configFilePath string) *ControllersConfig {
 	viper.SetConfigFile(configFilePath)
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("fatal error reading config file: %w", err)
+		log.Fatalf("fatal error reading config file for node creation: %w", err)
 	}
 
 	var config ControllersConfig

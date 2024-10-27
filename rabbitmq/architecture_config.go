@@ -38,7 +38,7 @@ func LoadConfig(configFilePath string) *ArchitectureConfig {
 	viper.SetConfigFile(configFilePath)
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("fatal error reading config file: %w", err)
+		log.Fatalf("fatal error reading config file for architecture load: %w", err)
 	}
 
 	var config ArchitectureConfig

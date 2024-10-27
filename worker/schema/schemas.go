@@ -6,7 +6,11 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("log")
 
 const maxBatchSize = 34 * 1024 * 1024
 
@@ -117,10 +121,12 @@ func PlayedTimeDeserialize(d *common.Deserializer) (*PlayedTime, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("Played time: %f", pt)
 	n, err := d.ReadString()
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("Name: %s", n)
 	return &PlayedTime{
 		AveragePlaytimeForever: pt,
 		Name:                   n,
@@ -286,6 +292,8 @@ func StrParse[T any](s string) (*T, error) {
 		return nil, err
 	}
 
+	log.Debugf("Parsed %v", z)
+
 	return &z, nil
 }
 
@@ -360,6 +368,8 @@ func UnmarshalMessageDeserializer(d *common.Deserializer) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debugf("Unmarshalling message of type %d", t)
 
 	switch t {
 	case common.Type_Game:
