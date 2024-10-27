@@ -42,7 +42,6 @@ func main() {
 	var arc = rabbitmq.CreateArchitecture(arcCfg)
 	defer arc.Close()
 	var _, err = common.InitConfig("./common.yaml")
-	log.Debugf("Loading common yaml file with %v q2 top", common.Config.GetInt("query.two.top"))
 	var controllersConfig = LoadConfig("./controllers.yaml")
 	if err != nil {
 		log.Fatal(err)

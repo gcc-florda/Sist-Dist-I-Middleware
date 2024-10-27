@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/business"
@@ -11,6 +12,7 @@ import (
 
 func CreateMFGQ1(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("MFGQ1_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Games.GetQueue("MFG_Q1", cfg.ReadFromPartition),
 		},
@@ -31,6 +33,7 @@ func CreateMFGQ1(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 
 func CreateMFGQ2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("MFGQ2_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Games.GetQueue("MFG_Q2", cfg.ReadFromPartition),
 		},
@@ -51,6 +54,7 @@ func CreateMFGQ2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 
 func CreateMFGQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("MFGQ3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Games.GetQueue("MFG_Q3", cfg.ReadFromPartition),
 		},
@@ -71,6 +75,7 @@ func CreateMFGQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 
 func CreateMFGQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("MFGQ4_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Games.GetQueue("MFG_Q4", cfg.ReadFromPartition),
 		},
@@ -91,6 +96,7 @@ func CreateMFGQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 
 func CreateMFGQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("MFGQ5_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Games.GetQueue("MFG_Q5", cfg.ReadFromPartition),
 		},
@@ -111,6 +117,7 @@ func CreateMFGQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 
 func CreateMFRQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("MFRQ3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Reviews.GetQueue("MFR_Q3", cfg.ReadFromPartition),
 		},
@@ -141,6 +148,7 @@ func CreateMFRQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	}
 
 	return controller.NewController(
+		fmt.Sprintf("MFRQ4_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Reviews.GetQueue("MFR_Q4", cfg.ReadFromPartition),
 		},
@@ -161,6 +169,7 @@ func CreateMFRQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 
 func CreateMFRQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("MFRQ5_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.MapFilter.Reviews.GetQueue("MFR_Q5", cfg.ReadFromPartition),
 		},

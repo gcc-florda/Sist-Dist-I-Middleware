@@ -3,6 +3,7 @@ package controller
 import (
 	"middleware/common"
 	"middleware/worker/schema"
+	"path/filepath"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -19,8 +20,9 @@ type HandlerRuntime struct {
 	finish          chan bool
 }
 
-func NewHandlerRuntime(j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan *HandlerRuntime) (*HandlerRuntime, error) {
-	eof, err := NewEOFState(common.Config.GetString("metasavepath"), j.String())
+func NewHandlerRuntime(controllerName string, j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan *HandlerRuntime) (*HandlerRuntime, error) {
+	log.Debugf("Saving EOF to: %s", filepath.Join(controllerName, j.String()))
+	eof, err := NewEOFState(common.Config.GetString("metasavepath"), filepath.Join(controllerName, j.String()))
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,6 @@ func (h *HandlerRuntime) Start() {
 		} else {
 			eof, err := EOFMessageFromBytes(msg.Message.Data())
 			if err != nil {
-				log.Debugf("Esploto cuando llego el EOF porque no se parseo %s", err)
 				msg.Delivery.Nack(false, true)
 			}
 			h.eofs.Update(eof.TokenName)
@@ -117,8 +118,8 @@ sendLoop:
 			}
 			h.toController <- h.unicast(r, nil)
 		case err, ok := <-ce:
-			if !ok {
-				break sendLoop
+			if err == nil && !ok {
+				continue
 			}
 			log.Errorf("There was an error while handling a next stage message in JobID: %s. Error: %s", h.JobId, err)
 			return false

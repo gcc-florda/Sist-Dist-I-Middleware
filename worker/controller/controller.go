@@ -64,6 +64,7 @@ type messageFromQueue struct {
 }
 
 type Controller struct {
+	name         string
 	rcvFrom      []*rabbitmq.Queue
 	to           []*rabbitmq.Exchange
 	handlerChan  chan *messageToSend
@@ -74,12 +75,13 @@ type Controller struct {
 	runtimeWG    sync.WaitGroup
 }
 
-func NewController(from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
+func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
 
 	mts := make(chan *messageToSend, 50)
 	h := make(chan *HandlerRuntime, 50)
 
 	c := &Controller{
+		name:         controllerName,
 		rcvFrom:      from,
 		to:           to,
 		protocol:     protocol,
@@ -109,6 +111,7 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 			return nil, err
 		}
 		hr, err := NewHandlerRuntime(
+			q.name,
 			j,
 			h,
 			eof,
@@ -228,8 +231,6 @@ mainloop:
 			d.Nack(false, true)
 			continue
 		}
-
-		log.Debug("Received and deserialized protocol message correctly")
 
 		h, err := q.getHandler(dm.JobID())
 		if err != nil {

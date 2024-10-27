@@ -165,13 +165,11 @@ func (c *EOFChecker) AddCondition(s enums.TokenName, n uint) *EOFChecker {
 }
 
 func (c *EOFChecker) Finish(receivedEOFs map[enums.TokenName]uint) (*EOFMessage, bool) {
-	log.Debugf("necesito %s, llegaron: %s", c.Needed, receivedEOFs)
 	for k := range c.Needed {
 		if receivedEOFs[k] < c.Needed[k] {
 			return nil, false
 		}
 	}
-	log.Debugf("")
 	return &EOFMessage{
 		TokenName: c.ToSend,
 	}, true

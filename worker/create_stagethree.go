@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/business"
@@ -9,6 +10,7 @@ import (
 
 func CreateQ1S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q1S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryOne.StageThree.GetQueueSingle(1),
 		},
@@ -30,6 +32,7 @@ func CreateQ1S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ2S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q2S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryTwo.StageThree.GetQueueSingle(1),
 		},
@@ -58,6 +61,7 @@ func CreateQ2S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ3S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q3S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryThree.StageThree.GetQueueSingle(1),
 		},
@@ -85,6 +89,7 @@ func CreateQ3S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ4S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q4S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryFour.StageThree.GetQueueSingle(1),
 		},
@@ -113,6 +118,7 @@ func CreateQ4S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ5S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q5S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryFive.StageThree.GetQueueSingle(1),
 		},

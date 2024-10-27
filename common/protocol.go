@@ -41,8 +41,6 @@ func Receive(conn net.Conn) string {
 	_, err = io.ReadFull(conn, message)
 	FailOnError(err, "Failed to read message")
 
-	log.Debugf("Received message via TCP: %s", message)
-
 	return string(message)
 }
 

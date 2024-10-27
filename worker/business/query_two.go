@@ -9,10 +9,6 @@ import (
 )
 
 func Q2Filter(r *schema.Game) bool {
-	log.Debugf("Q2F - Query 2: Filtering for %s", r.Name)
-	log.Debugf("Game genres are: %v", r.Genres)
-	log.Debugf("Config category is: %s", common.Config.GetString("query.two.category"))
-
 	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.two.category"))
 }
 
@@ -98,7 +94,6 @@ func (q *Q2) Insert(games *schema.PlayedTime) error {
 	if len(q.state.Top) > q.state.N {
 		q.state.Top = q.state.Top[:q.state.N]
 	}
-
 	_, err := q.storage.SaveState(q.state)
 	if err != nil {
 		return err
@@ -111,7 +106,6 @@ func (q *Q2) NextStage() (<-chan schema.Partitionable, <-chan error) {
 	ch := make(chan schema.Partitionable, q.state.N) //Change this later
 	ce := make(chan error, 1)
 	go func() {
-		log.Debugf("Q2NS - Query 2: Sending %d elements", len(q.state.Top))
 		defer close(ch)
 		defer close(ce)
 

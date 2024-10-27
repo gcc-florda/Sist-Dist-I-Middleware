@@ -96,10 +96,8 @@ func (s *Server) HandleConnection(client *Client) {
 			binary.BigEndian.PutUint32(a, eoftt)
 			send[0] = common.Type_Game
 			if strings.Contains(message, "EOF") {
-				log.Debugf("Received a GAMES type message - EOF")
 				s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Control, a))
 			} else {
-				log.Debugf("Received a GAMES type message - DATA")
 				s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
 			}
 			log.Debugf("Forwarded to ExchangeNameGames")
@@ -109,10 +107,8 @@ func (s *Server) HandleConnection(client *Client) {
 			binary.BigEndian.PutUint32(a, eoftt)
 			send[0] = common.Type_Review
 			if strings.Contains(message, "EOF") {
-				log.Debugf("Recieved a REVIEWS type message - EOF")
 				s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Control, a))
 			} else {
-				log.Debugf("Recieved a REVIEWS type message - DATA")
 				s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
 			}
 			log.Debugf("Forwarded to ExchangeNameReviews")

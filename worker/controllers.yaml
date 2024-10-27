@@ -7,10 +7,10 @@ controllers:
 #     readFromPartition: 1 # For any Stage 3, this should always be one
   - type: "MFGQ2"
     readFromPartition: 1
-  # - type: "Q2S2"
-  #   readFromPartition: 1
-  # - type: "Q2S3"
-  #   readFromPartition: 1
+  - type: "Q2S2"
+    readFromPartition: 1
+  - type: "Q2S3"
+    readFromPartition: 1
   # - type: "MFGQ3"
   #   readFromPartition: 1
   # - type: "Q3S2"

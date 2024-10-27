@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/business"
@@ -9,6 +10,7 @@ import (
 
 func CreateQ1S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q1S2_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryOne.StageTwo.GetQueueSingle(cfg.ReadFromPartition),
 		},
@@ -30,6 +32,7 @@ func CreateQ1S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ2S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q2S2_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryTwo.StageTwo.GetQueueSingle(cfg.ReadFromPartition),
 		},
@@ -58,6 +61,7 @@ func CreateQ2S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ3S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q3S2_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryThree.StageTwo.GetQueueSingle(cfg.ReadFromPartition),
 		},
@@ -92,6 +96,7 @@ func CreateQ3S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ4S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q4S2_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryFour.StageTwo.GetQueueSingle(cfg.ReadFromPartition),
 		},
@@ -125,6 +130,7 @@ func CreateQ4S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 
 func CreateQ5S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
+		fmt.Sprintf("Q5S2_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
 			arc.QueryFive.StageTwo.GetQueueSingle(cfg.ReadFromPartition),
 		},
