@@ -2,6 +2,7 @@ package business_test
 
 import (
 	"bufio"
+	"bytes"
 	"middleware/common"
 	"middleware/worker/business"
 	"middleware/worker/schema"
@@ -10,8 +11,8 @@ import (
 	"testing"
 )
 
-var gtp = filepath.Join(".", "test_files", "join", "1", "game.results")
-var rtp = filepath.Join(".", "test_files", "join", "1", "review.results")
+var gtp = filepath.Join(".", "test_files", "test", "join", "1", "game.results")
+var rtp = filepath.Join(".", "test_files", "test", "join", "1", "review.results")
 
 func deleteFiles() {
 	os.Remove(gtp)
@@ -156,6 +157,22 @@ func TestJoinAddReview(t *testing.T) {
 
 	f, _ := os.Open(rtp)
 	s := bufio.NewScanner(f)
+	s.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if atEOF && len(data) == 0 {
+			return 0, nil, nil
+		}
+		// Look for the first occurrence of '@*'
+		if i := bytes.Index(data, []byte("@*")); i >= 0 {
+			// Return the data up to the delimiter '@*'
+			return i + 2, data[:i], nil
+		}
+		// If we're at EOF and there's remaining data, return it.
+		if atEOF {
+			return len(data), data, nil
+		}
+		// Request more data.
+		return 0, nil, nil
+	})
 	i := 0
 	for s.Scan() {
 		b := s.Bytes()

@@ -5,6 +5,7 @@ query:
   three:
     category: indie
     positive: false
+    decade: 2010
     top: 5
   four:
     category: action

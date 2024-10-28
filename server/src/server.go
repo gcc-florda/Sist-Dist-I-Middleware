@@ -86,30 +86,26 @@ func (s *Server) HandleConnection(client *Client) {
 
 		rk := common.GetRoutingKey(message)
 
-		mb := []byte(message[2:])
-		send := make([]byte, len(mb)+1)
-		copy(send[1:], mb)
+		ser := common.NewSerializer()
 
 		if rk == common.RoutingGames {
 			var eoftt uint32 = 0
 			a := make([]byte, 4)
 			binary.BigEndian.PutUint32(a, eoftt)
-			send[0] = common.Type_Game
 			if strings.Contains(message, "EOF") {
 				s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Control, a))
 			} else {
-				s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+				s.ExchangeGames.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, ser.WriteUint8(common.Type_Game).WriteString(message[2:]).ToBytes()))
 			}
 			log.Debugf("Forwarded to ExchangeNameGames")
 		} else if rk == common.RoutingReviews {
 			var eoftt uint32 = 1
 			a := make([]byte, 4)
 			binary.BigEndian.PutUint32(a, eoftt)
-			send[0] = common.Type_Review
 			if strings.Contains(message, "EOF") {
 				s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Control, a))
 			} else {
-				s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, send))
+				s.ExchangeReviews.Publish("1", common.NewMessage(client.Id, common.ProtocolMessage_Data, ser.WriteUint8(common.Type_Review).WriteString(message[2:]).ToBytes()))
 			}
 			log.Debugf("Forwarded to ExchangeNameReviews")
 		}

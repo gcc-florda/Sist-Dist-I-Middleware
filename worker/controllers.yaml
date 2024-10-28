@@ -13,9 +13,9 @@ controllers:
   #   readFromPartition: 1
   # - type: "MFGQ3"
   #   readFromPartition: 1
-  # - type: "Q3S2"
+  # - type: "Q2S2"
   #   readFromPartition: 1
-  # - type: "Q3S3"
+  # - type: "Q2S3"
   #   readFromPartition: 1
   - type: "MFGQ4"
     readFromPartition: 1

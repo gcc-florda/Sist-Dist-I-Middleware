@@ -38,6 +38,7 @@ func NewJoin(base string, query string, id string, bufSize int) (*Join, error) {
 }
 
 func (q *Join) AddReview(r *schema.ValidReview) error {
+	log.Debugf("Adding Review: %s", r.AppID)
 	err := q.addReview(r.AppID)
 	if err != nil {
 		return err
@@ -46,7 +47,8 @@ func (q *Join) AddReview(r *schema.ValidReview) error {
 }
 
 func (q *Join) AddGame(r *schema.GameName) error {
-	_, err := q.gameStorage.Append(r.Serialize())
+	log.Debugf("Adding Game: %s - %s", r.AppID, r.Name)
+	_, err := q.gameStorage.AppendLine(r.Serialize())
 	if err != nil {
 		return err
 	}
@@ -66,7 +68,7 @@ func (q *Join) addReview(appId string) error {
 	}
 	for scanner.Scan() {
 		b := scanner.Bytes()
-		lb := len(b) + 1
+		lb := len(b) + 2
 		d := common.NewDeserializer(b)
 		l, err := schema.ReviewCounterDeserialize(&d)
 		if err != nil {
@@ -80,7 +82,7 @@ func (q *Join) addReview(appId string) error {
 
 		l.Count += 1
 
-		nb := append(l.Serialize(), '\n')
+		nb := append(l.Serialize(), '@', '*')
 
 		_, err = file.Seek(offset, 0)
 		if err != nil {
@@ -168,7 +170,6 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 				if r == nil {
 					break
 				}
-
 				if r.AppID == g.AppID {
 					nrc := &schema.NamedReviewCounter{
 						Name:  g.Name,
@@ -179,6 +180,10 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 				} else {
 					cache.TryPut(r.AppID, r)
 				}
+			}
+			cr <- &schema.NamedReviewCounter{
+				Name:  g.Name,
+				Count: 0,
 			}
 			return nil
 		}
@@ -193,6 +198,7 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 				ce <- err
 				return
 			}
+			log.Debugf("Game: %s - %s", gn.AppID, gn.Name)
 			err = tryJoin(gn)
 			if err != nil {
 				ce <- err

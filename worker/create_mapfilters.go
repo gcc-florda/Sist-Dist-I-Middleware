@@ -59,7 +59,7 @@ func CreateMFGQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			arc.MapFilter.Games.GetQueue("MFG_Q3", cfg.ReadFromPartition),
 		},
 		[]*rabbitmq.Exchange{
-			arc.QueryTwo.StageTwo.GetExchange(),
+			arc.QueryThree.StageTwo.GetExchange(),
 		},
 		&controller.NodeProtocol{
 			PartitionAmount: uint(arcCfg.QueryThree.StageTwo.PartitionAmount),
@@ -80,7 +80,7 @@ func CreateMFGQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			arc.MapFilter.Games.GetQueue("MFG_Q4", cfg.ReadFromPartition),
 		},
 		[]*rabbitmq.Exchange{
-			arc.QueryTwo.StageTwo.GetExchange(),
+			arc.QueryFour.StageTwo.GetExchange(),
 		},
 		&controller.NodeProtocol{
 			PartitionAmount: uint(arcCfg.QueryFour.StageTwo.PartitionAmount),
@@ -101,7 +101,7 @@ func CreateMFGQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			arc.MapFilter.Games.GetQueue("MFG_Q5", cfg.ReadFromPartition),
 		},
 		[]*rabbitmq.Exchange{
-			arc.QueryTwo.StageTwo.GetExchange(),
+			arc.QueryFive.StageTwo.GetExchange(),
 		},
 		&controller.NodeProtocol{
 			PartitionAmount: uint(arcCfg.QueryFive.StageTwo.PartitionAmount),

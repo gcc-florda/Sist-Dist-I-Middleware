@@ -49,7 +49,7 @@ func (p *NodeProtocol) Route(partitionKey string) (routingKey string) {
 }
 
 func (p *NodeProtocol) Broadcast() []string {
-	numbers := make([]string, p.PartitionAmount)
+	numbers := make([]string, 0, p.PartitionAmount)
 
 	for i := 1; i <= int(p.PartitionAmount); i++ {
 		numbers = append(numbers, strconv.Itoa(i))
