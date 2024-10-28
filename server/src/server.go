@@ -119,7 +119,7 @@ func (s *Server) HandleConnection(client *Client) {
 func (s *Server) HandleResults(client *Client) {
 	ch := make(chan []byte, 1024)
 
-	s.Results.Consume(ch)
+	s.Consume(ch)
 
 	for message := range ch {
 		m, err := common.MessageFromBytes(message)
@@ -153,5 +153,28 @@ func (s *Server) HandleShutdown() {
 	for _, client := range s.Clients {
 		client.Close()
 		log.Infof("Closed connection for client: %s", client.Id)
+	}
+}
+
+func (s *Server) Consume(ch chan []byte) {
+	log.Info("Consuming results")
+
+	// q1 := r.QueryOne.GetQueueSingle(1)
+	// q2 := r.QueryTwo.GetQueueSingle(1)
+	// q3 := r.QueryThree.GetQueueSingle(1)
+	q4 := s.Results.QueryFour.GetQueueSingle(1)
+	// q5 := r.QueryFive.GetQueueSingle(1)
+
+	// go r.SendQueryResultToChannel(ch, q1)
+	// go r.SendQueryResultToChannel(ch, q2)
+	// go r.SendQueryResultToChannel(ch, q3)
+	go s.SendQueryResultToChannel(ch, q4)
+	// go r.SendQueryResultToChannel(ch, q5)
+}
+
+func (s *Server) SendQueryResultToChannel(ch chan []byte, q *rabbitmq.Queue) {
+	chq := q.Consume()
+	for m := range chq {
+		ch <- m.Body
 	}
 }

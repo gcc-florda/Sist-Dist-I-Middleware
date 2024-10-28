@@ -7,11 +7,11 @@ query:
     positive: false
     top: 5
   four:
-    category: "action"
+    category: action
     positive: true
     over: 5000
   five:
-    category: "action"
+    category: action
     positive: true
     percentile: 90
 
