@@ -47,7 +47,10 @@ func (q *Q5) Q5Quantile() (int, error) {
 	batch := schema.NewNamedReviewBatch(q.Base, q.JobId, 0)
 	tempSortedFiles := make([]*common.TemporaryStorage, 0)
 
-	scanner, err := q.Storage.Scanner()
+	scanner, err := q.Storage.ScannerDeserialize(func(d *common.Deserializer) error {
+		_, err := schema.NamedReviewCounterDeserialize(d)
+		return err
+	})
 	q.Storage.Reset()
 	common.FailOnError(err, "Cannot create scanner")
 
@@ -130,7 +133,7 @@ func Q5PartialSort(batch *schema.NamedReviewBatch, batchTempFile *common.Tempora
 
 	for h.Len() > 0 {
 		minReview := heap.Pop(h).(ReviewWithSource)
-		_, err := batchTempFile.AppendLine(minReview.Review.Serialize())
+		_, err := batchTempFile.Append(minReview.Review.Serialize())
 		if err != nil {
 			return err
 		}
@@ -143,7 +146,10 @@ func OpenAll(tempSortedFiles []*common.TemporaryStorage) ([]*bufio.Scanner, erro
 	readers := make([]*bufio.Scanner, len(tempSortedFiles))
 	for i, tempFile := range tempSortedFiles {
 		tempFile.Reset()
-		scanner, err := tempFile.Scanner()
+		scanner, err := tempFile.ScannerDeserialize(func(d *common.Deserializer) error {
+			_, err := schema.NamedReviewCounterDeserialize(d)
+			return err
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +193,7 @@ func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.
 	for h.Len() > 0 {
 		min := heap.Pop(h).(ReviewWithSource)
 
-		bytesWritten, err := sortedFile.AppendLine(min.Review.Serialize())
+		bytesWritten, err := sortedFile.Append(min.Review.Serialize())
 		if err != nil || bytesWritten == 0 {
 			return 0, err
 		}
@@ -238,7 +244,7 @@ func NewQ5(base string, id string, partition int, pctOver int, bufSize int) (*Q5
 }
 
 func (q *Q5) Insert(rc *schema.NamedReviewCounter) error {
-	_, err := q.Storage.AppendLine(rc.Serialize())
+	_, err := q.Storage.Append(rc.Serialize())
 	if err != nil {
 		return err
 	}
@@ -263,7 +269,10 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 
 		q.sortedStorage.Reset()
 
-		s, err := q.sortedStorage.Scanner()
+		s, err := q.sortedStorage.ScannerDeserialize(func(d *common.Deserializer) error {
+			_, err = schema.NamedReviewCounterDeserialize(d)
+			return err
+		})
 
 		if err != nil {
 			ce <- err

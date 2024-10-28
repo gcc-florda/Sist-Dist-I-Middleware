@@ -61,7 +61,10 @@ func CreateRandomBatchSorted(n int, idx int) (*schema.NamedReviewBatch, *common.
 func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 	file.Reset()
 
-	scanner, err := file.Scanner()
+	scanner, err := file.ScannerDeserialize(func(d *common.Deserializer) error {
+		_, err := schema.NamedReviewCounterDeserialize(d)
+		return err
+	})
 	FatalOnError(err, t, "Cannot create scanner")
 
 	lastReviewCount := -1
@@ -94,7 +97,10 @@ func TestQ5Insert(t *testing.T) {
 
 	q5.Insert(&game)
 
-	scanner, err := q5.Storage.Scanner()
+	scanner, err := q5.Storage.ScannerDeserialize(func(d *common.Deserializer) error {
+		_, err := schema.NamedReviewCounterDeserialize(d)
+		return err
+	})
 	FatalOnError(err, t, "Cannot create scanner")
 
 	for scanner.Scan() {
@@ -149,7 +155,10 @@ func TestQ5PushAtIdx1Row(t *testing.T) {
 
 	tempFile.Reset()
 
-	reader, err := tempFile.Scanner()
+	reader, err := tempFile.ScannerDeserialize(func(d *common.Deserializer) error {
+		_, err := schema.NamedReviewCounterDeserialize(d)
+		return err
+	})
 	FatalOnError(err, t, "Cannot create scanner")
 
 	business.PushHeapAtIdx(h, reader, 0)
