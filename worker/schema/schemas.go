@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/csv"
+	"fmt"
 	"middleware/common"
 	"reflect"
 	"strconv"
@@ -14,6 +15,9 @@ var log = logging.MustGetLogger("log")
 
 const maxBatchSize = 34 * 1024 * 1024
 
+type ToCSV interface {
+	ToCSV() []string
+}
 type Game struct {
 	AppID                   string
 	Name                    string
@@ -80,6 +84,14 @@ func (s *SOCounter) PartitionKey() string {
 	return common.GenerateRandomString(10)
 }
 
+func (s *SOCounter) ToCSV() []string {
+	return []string{
+		fmt.Sprintf("%d", s.Windows),
+		fmt.Sprintf("%d", s.Linux),
+		fmt.Sprintf("%d", s.Mac),
+	}
+}
+
 func SOCounterDeserialize(d *common.Deserializer) (*SOCounter, error) {
 	windows, err := d.ReadUint32()
 	if err != nil {
@@ -114,6 +126,13 @@ func (p *PlayedTime) Serialize() []byte {
 
 func (p *PlayedTime) PartitionKey() string {
 	return p.Name
+}
+
+func (p *PlayedTime) ToCSV() []string {
+	return []string{
+		p.Name,
+		fmt.Sprintf("%f", p.AveragePlaytimeForever),
+	}
 }
 
 func PlayedTimeDeserialize(d *common.Deserializer) (*PlayedTime, error) {
@@ -229,6 +248,13 @@ func (c *NamedReviewCounter) Serialize() []byte {
 
 func (c *NamedReviewCounter) PartitionKey() string {
 	return c.Name
+}
+
+func (c *NamedReviewCounter) ToCSV() []string {
+	return []string{
+		c.Name,
+		fmt.Sprintf("%d", c.Count),
+	}
 }
 
 func NamedReviewCounterDeserialize(d *common.Deserializer) (*NamedReviewCounter, error) {

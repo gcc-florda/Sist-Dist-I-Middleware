@@ -97,8 +97,12 @@ func (d *Deserializer) ReadString() (string, error) {
 		return "", err
 	}
 	str := make([]byte, length)
-	if _, err := d.Buf.Read(str); err != nil {
+	n, err := d.Buf.Read(str)
+	if err != nil {
 		return "", err
+	}
+	if n != int(length) {
+		return string(str), errors.New("A")
 	}
 	return string(str), nil
 }

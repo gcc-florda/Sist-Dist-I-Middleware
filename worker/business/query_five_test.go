@@ -82,7 +82,7 @@ func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 	t.Log("File sorted correctly")
 }
 func TestQ5Insert(t *testing.T) {
-	q5, err := business.NewQ5("temp", "99", 90, 10)
+	q5, err := business.NewQ5("temp", "99", 1, 90, 10)
 	FatalOnError(err, t, "Cannot create Q5")
 
 	q5.Storage.Overwrite([]byte{})
@@ -210,7 +210,7 @@ func TestQ5MergeSort(t *testing.T) {
 }
 
 func TestQ5CalculateP90(t *testing.T) {
-	q5, err := business.NewQ5("temp", "99", 90, 10)
+	q5, err := business.NewQ5("temp", "99", 1, 90, 10)
 	FatalOnError(err, t, "Cannot create Q5")
 
 	q5.Storage.Overwrite([]byte{})

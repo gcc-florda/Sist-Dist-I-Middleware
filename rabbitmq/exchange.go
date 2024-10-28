@@ -45,8 +45,6 @@ func (e *Exchange) Publish(routingKey string, body common.Serializable) {
 		},
 	)
 	common.FailOnError(err, "Failed to publish a message")
-
-	log.Debugf("Published message to exchange %s with routing key %s", e.Name, routingKey)
 }
 
 func (e *Exchange) Close() {

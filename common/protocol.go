@@ -26,22 +26,26 @@ func Send(message string, conn net.Conn) {
 		FailOnError(err, "Failed to send bytes to server")
 		bytesSent += n
 	}
-
-	log.Debugf("Sent message via TCP: %s", message)
 }
 
-func Receive(conn net.Conn) string {
+func Receive(conn net.Conn) (string, error) {
 	lengthBuffer := make([]byte, 4)
 	_, err := io.ReadFull(conn, lengthBuffer)
-	FailOnError(err, "Failed to read message length")
+	if err != nil {
+		log.Errorf("Failed to read message %s", err)
+		return "", err
+	}
 
 	messageLength := binary.BigEndian.Uint32(lengthBuffer)
 
 	message := make([]byte, messageLength)
 	_, err = io.ReadFull(conn, message)
-	FailOnError(err, "Failed to read message")
+	if err != nil {
+		log.Errorf("Failed to read message %s", err)
+		return "", err
+	}
 
-	return string(message)
+	return string(message), nil
 }
 
 func GetRoutingKey(line string) string {

@@ -1,6 +1,7 @@
 package business
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
@@ -30,8 +31,8 @@ type Q1 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ1(base string, id string, stage string) (*Q1, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_one", stage, id, "results"))
+func NewQ1(base string, id string, partition int, stage string) (*Q1, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_one_%d", partition), stage, id, "results"))
 
 	if err != nil {
 		return nil, err
@@ -90,7 +91,6 @@ func (q *Q1) NextStage() (<-chan schema.Partitionable, <-chan error) {
 }
 
 func (q *Q1) Handle(protocolData []byte) (schema.Partitionable, error) {
-	log.Debugf("Handling some message in Q1")
 	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		log.Debugf("Error marshalling Q1")
@@ -108,7 +108,7 @@ func (q *Q1) Shutdown(delete bool) {
 	if delete {
 		err := q.storage.Delete()
 		if err != nil {
-			log.Errorf("Error while deleting the file: %s", err)
+			log.Errorf("Action: Deleting JOIN Game File | Result: Error | Error: %s", err)
 		}
 	}
 }

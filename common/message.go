@@ -61,10 +61,6 @@ func messageDeserialize(d *Deserializer) (uuid.UUID, uint8, error) {
 		return id, t, errors.New("the read message from the protocol is not of a known type")
 	}
 
-	if t == ProtocolMessage_Control {
-		log.Debugf("Llego un EOF")
-	}
-
 	return id, t, nil
 }
 

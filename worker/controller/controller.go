@@ -132,6 +132,7 @@ func (q *Controller) removeHandler(h *HandlerRuntime) {
 	// BLOCKING CALL, wait for the handler to finish all its work.
 	// Not a problem that this blocks, because the others handlers
 	// are working in a separate goroutine, so they can do work.
+	log.Infof("Action: Deleting Handler %s - %s", h.name, h.JobId)
 	h.Finish()
 	delete(q.handlers, h.JobId)
 	q.runtimeWG.Done()
@@ -139,7 +140,6 @@ func (q *Controller) removeHandler(h *HandlerRuntime) {
 
 func (q *Controller) publish(routing string, m common.Serializable) {
 	for _, ex := range q.to {
-		log.Infof("Publishing message with routing key %s into exchange %s", routing, ex.Name)
 		ex.Publish(routing, m)
 	}
 }
@@ -249,7 +249,7 @@ mainloop:
 	q.SignalNoMoreMessages()
 
 	end.Wait()
-	log.Debugf("Finalized main loop for handler")
+	log.Debugf("Finalized main loop for controller")
 }
 
 func (q *Controller) SignalNoMoreMessages() {

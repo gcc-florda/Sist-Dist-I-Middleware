@@ -24,7 +24,6 @@ func NewRabbit() *Rabbit {
 	common.FailOnError(err, "Failed to open a channel")
 
 	log.Debugf("Connected to RabbitMQ")
-
 	return &Rabbit{
 		Connection: conn,
 		Channel:    ch,

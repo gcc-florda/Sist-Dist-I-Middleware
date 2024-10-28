@@ -21,7 +21,7 @@ func CreateQ1S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 			PartitionAmount: 1,
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			h, err := business.NewQ1(common.Config.GetString("savepath"), jobId.String(), "stage_two")
+			h, err := business.NewQ1(common.Config.GetString("savepath"), jobId.String(), cfg.ReadFromPartition, "stage_two")
 			if err != nil {
 				return nil, nil, err
 			}
@@ -47,6 +47,7 @@ func CreateQ2S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 				common.Config.GetString("savepath"),
 				"stage_two",
 				jobId.String(),
+				cfg.ReadFromPartition,
 				common.Config.GetInt("query.two.top"),
 			)
 
@@ -76,6 +77,7 @@ func CreateQ3S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 				common.Config.GetString("savepath"),
 				"query_three",
 				jobId.String(),
+				cfg.ReadFromPartition,
 				common.Config.GetInt("joinBuffer"),
 			)
 
@@ -111,6 +113,7 @@ func CreateQ4S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 				common.Config.GetString("savepath"),
 				"query_three",
 				jobId.String(),
+				cfg.ReadFromPartition,
 				common.Config.GetInt("joinBuffer"),
 			)
 
@@ -145,6 +148,7 @@ func CreateQ5S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 				common.Config.GetString("savepath"),
 				"query_three",
 				jobId.String(),
+				cfg.ReadFromPartition,
 				common.Config.GetInt("joinBuffer"),
 			)
 

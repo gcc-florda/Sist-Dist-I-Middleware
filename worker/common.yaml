@@ -1,11 +1,11 @@
 query:
   two:
     category: indie
+    decade: 2010
     top: 10
   three:
     category: indie
-    positive: false
-    decade: 2010
+    positive: true
     top: 5
   four:
     category: action

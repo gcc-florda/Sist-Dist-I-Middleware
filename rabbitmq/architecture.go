@@ -50,6 +50,16 @@ func CreatePartitionedQueues(rabbit *Rabbit, bindTo *Exchange, prefix string, co
 	return &PartitionedQueues{queues: queues, count: count}
 }
 
+func CreatePartitionedQueuesWithNameBinding(rabbit *Rabbit, bindTo *Exchange, prefix string, count int) *PartitionedQueues {
+	queues := make([]*Queue, 0, count)
+	for i := 1; i <= count; i++ {
+		q := rabbit.NewQueue(fmt.Sprintf("%s_%d", prefix, i))
+		q.Bind(bindTo, fmt.Sprintf("%s_%d", prefix, i))
+		queues = append(queues, q)
+	}
+	return &PartitionedQueues{queues: queues, count: count}
+}
+
 func (q *PartitionedQueues) GetQueue(partitionKey int) *Queue {
 	if partitionKey > q.count {
 		log.Fatalf("Can't get a queue with partition key greater than the queues created (get: %d, created: %d)", partitionKey, q.count)
@@ -64,6 +74,22 @@ type PartitionedExchange struct {
 
 func (e *PartitionedExchange) GetExchange() *Exchange {
 	return e.exchange
+}
+
+func (e *PartitionedExchange) GetChannels() []string {
+	keys := make([]string, 0, len(e.channels))
+	for k := range e.channels {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (e *PartitionedExchange) GetChannelSize(channel string) int {
+	pqs, ok := e.channels[channel]
+	if !ok {
+		log.Fatalf("Couldn't get the channel %s for the exchange %s", channel, e.exchange.Name)
+	}
+	return len(pqs.queues)
 }
 
 func (e *PartitionedExchange) GetQueue(channel string, partitionKey int) *Queue {
@@ -94,11 +120,11 @@ func createGamePartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *Par
 	gex := rabbit.NewExchange("MAP_FILTER_GAMES", common.ExchangeDirect)
 
 	channels := map[string]*PartitionedQueues{
-		"MFG_Q1": CreatePartitionedQueues(rabbit, gex, "MFG_Q1", cfg.MapFilter.QueryOneGames.PartitionAmount),
-		"MFG_Q2": CreatePartitionedQueues(rabbit, gex, "MFG_Q2", cfg.MapFilter.QueryTwoGames.PartitionAmount),
-		"MFG_Q3": CreatePartitionedQueues(rabbit, gex, "MFG_Q3", cfg.MapFilter.QueryThreeGames.PartitionAmount),
-		"MFG_Q4": CreatePartitionedQueues(rabbit, gex, "MFG_Q4", cfg.MapFilter.QueryFourGames.PartitionAmount),
-		"MFG_Q5": CreatePartitionedQueues(rabbit, gex, "MFG_Q5", cfg.MapFilter.QueryFiveGames.PartitionAmount),
+		"MFG_Q1": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFG_Q1", cfg.MapFilter.QueryOneGames.PartitionAmount),
+		"MFG_Q2": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFG_Q2", cfg.MapFilter.QueryTwoGames.PartitionAmount),
+		"MFG_Q3": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFG_Q3", cfg.MapFilter.QueryThreeGames.PartitionAmount),
+		"MFG_Q4": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFG_Q4", cfg.MapFilter.QueryFourGames.PartitionAmount),
+		"MFG_Q5": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFG_Q5", cfg.MapFilter.QueryFiveGames.PartitionAmount),
 	}
 	return &PartitionedExchange{
 		exchange: gex,
@@ -110,9 +136,9 @@ func createReviewPartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *P
 	gex := rabbit.NewExchange("MAP_FILTER_REVIEWS", common.ExchangeDirect)
 
 	channels := map[string]*PartitionedQueues{
-		"MFR_Q3": CreatePartitionedQueues(rabbit, gex, "MFR_Q3", cfg.MapFilter.QueryThreeReviews.PartitionAmount),
-		"MFR_Q4": CreatePartitionedQueues(rabbit, gex, "MFR_Q4", cfg.MapFilter.QueryFourReviews.PartitionAmount),
-		"MFR_Q5": CreatePartitionedQueues(rabbit, gex, "MFR_Q5", cfg.MapFilter.QueryFiveReviews.PartitionAmount),
+		"MFR_Q3": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFR_Q3", cfg.MapFilter.QueryThreeReviews.PartitionAmount),
+		"MFR_Q4": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFR_Q4", cfg.MapFilter.QueryFourReviews.PartitionAmount),
+		"MFR_Q5": CreatePartitionedQueuesWithNameBinding(rabbit, gex, "MFR_Q5", cfg.MapFilter.QueryFiveReviews.PartitionAmount),
 	}
 	return &PartitionedExchange{
 		exchange: gex,

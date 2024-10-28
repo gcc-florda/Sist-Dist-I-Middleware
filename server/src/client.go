@@ -23,6 +23,6 @@ func (c *Client) Close() {
 	c.Connection.Close()
 }
 
-func (c *Client) Recv() string {
+func (c *Client) Recv() (string, error) {
 	return common.Receive(c.Connection)
 }

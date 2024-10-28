@@ -66,7 +66,8 @@ func (c *Client) StartClient() {
 	log.Infof("Connected to server at %s", c.Config.ServerAddress)
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
+	wg.Add(1)
 
 	go c.SendData(c.Config.GamesFilePath, &wg)
 
@@ -74,9 +75,10 @@ func (c *Client) StartClient() {
 
 	wg.Wait()
 
-	log.Infof("All data sent to server. Exiting")
-
 	common.Send(common.END, c.Connection)
+
+	time.Sleep(2 * time.Second)
+	log.Infof("All data sent to server. Exiting")
 }
 
 func (c *Client) OpenFile(path string) (*os.File, error) {
@@ -117,11 +119,10 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 
 	if err == io.EOF {
 		log.Criticalf("The file is empty")
-		return nil
+		return err
 	}
 
-	common.FailOnError(err, "Failed to read header from file")
-
+	i := 0
 	for {
 		line, err := reader.ReadString('\n')
 
@@ -130,7 +131,7 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 		if err == io.EOF {
 			c.SendBatch(lastBatch)
 			common.Send(pathType+",EOF", c.Connection)
-			time.Sleep(c.Config.BatchSleep)
+			log.Debugf("Seding EOF: %s", pathType+",EOF")
 			break
 		}
 
@@ -140,14 +141,15 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 
 		if !lastBatch.CanHandle(line, c.Config.BatchMaxAmount) {
 			c.SendBatch(lastBatch)
-			time.Sleep(c.Config.BatchSleep)
 
 			lastBatch = common.NewBatch()
 		}
 
 		lastBatch.AppendData(line)
+		i++
 	}
 
+	log.Debugf("Stopped loop %d", i)
 	return nil
 }
 

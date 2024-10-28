@@ -220,8 +220,8 @@ type Q5 struct {
 	sortedStorage *common.TemporaryStorage
 }
 
-func NewQ5(base string, id string, pctOver int, bufSize int) (*Q5, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_five", id, "results"))
+func NewQ5(base string, id string, partition int, pctOver int, bufSize int) (*Q5, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_five_%d", partition), id, "results"))
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func (q *Q5) Shutdown(delete bool) {
 	if delete {
 		err := q.Storage.Delete()
 		if err != nil {
-			log.Errorf("Error while deleting the file: %s", err)
+			log.Errorf("Action: Deleting JOIN Game File | Result: Error | Error: %s", err)
 		}
 	}
 }

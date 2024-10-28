@@ -1,6 +1,7 @@
 package business
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
@@ -51,8 +52,8 @@ type Q4 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ4(base string, id string, over int, bufSize int) (*Q4, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_four", id, "results"))
+func NewQ4(base string, id string, partition int, over int, bufSize int) (*Q4, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_four_%d", partition), id, "results"))
 	if err != nil {
 		return nil, err
 	}

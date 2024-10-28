@@ -1,34 +1,16 @@
 package business
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 	"sort"
-	"time"
 )
 
-func extractDecade(s string) (int, error) {
-	parsedDate, err := time.Parse("Jan 2, 2006", s)
-	if err != nil {
-		return 0, nil
-	}
-
-	// Extract the year
-	year := parsedDate.Year()
-
-	// Calculate the decade
-	return year / 10 * 10, nil
-}
-
 func Q3FilterGames(r *schema.Game) bool {
-	decade, err := extractDecade(r.ReleaseDate)
-	if err != nil {
-		log.Error("Can't extract decade from: %s", r.ReleaseDate)
-		return false
-	}
-	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.three.category")) && decade == common.Config.GetInt("query.three.decade")
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.three.category"))
 }
 
 func Q3FilterReviews(r *schema.Review) bool {
@@ -70,8 +52,8 @@ type Q3 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ3(base string, id string, top int) (*Q3, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_three", id, "results"))
+func NewQ3(base string, id string, partition int, top int) (*Q3, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_three_%d", partition), id, "results"))
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +141,7 @@ func (q *Q3) Shutdown(delete bool) {
 	if delete {
 		err := q.storage.Delete()
 		if err != nil {
-			log.Errorf("Error while deleting the file: %s", err)
+			log.Errorf("Action: Deleting JOIN Game File | Result: Error | Error: %s", err)
 		}
 	}
 }

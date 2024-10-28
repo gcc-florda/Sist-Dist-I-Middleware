@@ -10,6 +10,7 @@ import (
 
 type HandlerRuntime struct {
 	JobId           common.JobID
+	name            string
 	toController    chan *messageToSend
 	handler         Handler
 	validateEOF     EOFValidator
@@ -21,17 +22,17 @@ type HandlerRuntime struct {
 }
 
 func NewHandlerRuntime(controllerName string, j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan *HandlerRuntime) (*HandlerRuntime, error) {
-	log.Debugf("Saving EOF to: %s", filepath.Join(controllerName, j.String()))
 	eof, err := NewEOFState(common.Config.GetString("metasavepath"), filepath.Join(controllerName, j.String()))
 	if err != nil {
 		return nil, err
 	}
 	c := &HandlerRuntime{
 		JobId:           j,
+		name:            controllerName,
 		handler:         handler,
 		validateEOF:     validator,
 		toController:    send,
-		forJob:          make(chan *messageFromQueue, 50),
+		forJob:          make(chan *messageFromQueue, 10000),
 		housekeeping:    housekeeping,
 		eofs:            eof,
 		removeOnCleanup: false,
@@ -48,6 +49,7 @@ func (h *HandlerRuntime) Start() {
 	//	- An external force closed the channel for receiving messages
 	defer h.cleanup()
 	defer func() {
+		log.Infof("Action: Handler Runtime Finalizing %s - %s", h.name, h.JobId)
 		h.finish <- true
 	}()
 
@@ -83,20 +85,21 @@ func (h *HandlerRuntime) Start() {
 			}
 		}
 	}
-
-	log.Debugf("Finalized runtime for handler for %s", h.JobId.String())
 }
 
 func (h *HandlerRuntime) Finish() {
 	// Ensure that the runtime has sent everything to the controller
+	log.Debugf("Action: Received Finishing Signal to Finish %s-%s", h.name, h.JobId)
 	<-h.finish
-	h.handler.Shutdown(h.removeOnCleanup)
+	log.Debugf("Action: Shutting Down %s-%s | Remove: %t", h.name, h.JobId, h.removeOnCleanup)
+	h.handler.Shutdown(false)
+	log.Debugf("Action: Shutdown %s-%s", h.name, h.JobId)
 }
 
 func (h *HandlerRuntime) handleDataMessage(msg *messageFromQueue) {
 	out, err := h.handler.Handle(msg.Message.Data())
 	if err != nil {
-		log.Errorf("There was an error while handling a message in JobID: %s. Error: %s", h.JobId, err)
+		log.Errorf("Action: Handling Message %s - %s| Result: Error | Error: %s | Data: %s", h.name, h.JobId, err, msg.Message.Data())
 		msg.Delivery.Nack(false, true)
 	}
 	if out != nil {
@@ -121,7 +124,7 @@ sendLoop:
 			if err == nil && !ok {
 				continue
 			}
-			log.Errorf("There was an error while handling a next stage message in JobID: %s. Error: %s", h.JobId, err)
+			log.Errorf("Action: Next Stage Message %s - %s | Results: Error | Error: %s", h.name, h.JobId, err)
 			return false
 		}
 	}

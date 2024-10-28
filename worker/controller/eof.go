@@ -50,7 +50,6 @@ func EOFMessageDeserialize(d *common.Deserializer) (*EOFMessage, error) {
 	if !enums.IsValidTokenName(t) {
 		return nil, errors.New("the given token name is invalid")
 	}
-	log.Debugf("Deserializando EOF del tipo %s", enums.TokenName(t))
 	return &EOFMessage{
 		TokenName: enums.TokenName(t),
 	}, nil
@@ -99,18 +98,19 @@ func (e *EOFState) Read(token enums.TokenName) uint {
 }
 
 func (e *EOFState) saveState() error {
-	data, err := json.MarshalIndent(e.Received, "", "  ")
+	data, err := json.Marshal(e.Received)
 	if err != nil {
-		log.Debugf("Esploto cuando queria serializar los datos del EOF")
+		log.Errorf("Action: Marshalling EOFS | Result: Error | Error: %s", err)
 		return err
 	}
-	log.Debugf("Guardando datos del EOF, %s", data)
 
 	_, err = e.storage.Overwrite(data)
 	if err != nil {
-		log.Debugf("Esploto cuando queria guardar datos del EOF")
+		log.Errorf("Action: Saving EOFS | Data: %s | Result: Error | Error: %s", data, err)
 		return err
 	}
+
+	log.Debugf("Action: EOF Writing | Data: %s", data)
 
 	return nil
 }

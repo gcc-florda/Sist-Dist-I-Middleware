@@ -95,11 +95,12 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 			filepath: t.filepath,
 		}
 	}
+	t.file.Seek(0, io.SeekEnd)
 	return t.file.Write(data)
 }
 
 func (t *TemporaryStorage) AppendLine(data []byte) (int, error) {
-	return t.Append(append(append(data, '@'), '*'))
+	return t.Append(data)
 }
 
 func (t *TemporaryStorage) Reset() {
@@ -152,10 +153,11 @@ func (t *TemporaryStorage) Scanner() (*bufio.Scanner, error) {
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil
 		}
-		// Look for the first occurrence of '@*'
-		if i := bytes.Index(data, []byte("@*")); i >= 0 {
-			// Return the data up to the delimiter '@*'
-			return i + 2, data[:i], nil
+
+		// Look for the first occurrence of '~~~~'
+		if i := bytes.Index(data, []byte{0x00, 0x00, 0x00, 0x00}); i >= 0 {
+			// Return the data up to the delimiter '~~~~'
+			return i + 4, data[:i+4], nil
 		}
 		// If we're at EOF and there's remaining data, return it.
 		if atEOF {
@@ -163,6 +165,36 @@ func (t *TemporaryStorage) Scanner() (*bufio.Scanner, error) {
 		}
 		// Request more data.
 		return 0, nil, nil
+	})
+
+	return s, nil
+}
+
+func (t *TemporaryStorage) ScannerDeserialize(f func(*Deserializer) error) (*bufio.Scanner, error) {
+	if t.file == nil {
+		return nil, &ClosedFileError{
+			filepath: t.filepath,
+		}
+	}
+
+	s := bufio.NewScanner(t.file)
+	s.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if atEOF && len(data) == 0 {
+			return 0, nil, nil
+		}
+
+		d := NewDeserializer(data)
+		a := f(&d)
+		if a != nil {
+			return 0, nil, nil
+		}
+		l := len(data) - d.Buf.Len()
+
+		if l <= 0 {
+			return len(data), data, nil
+		}
+
+		return l, data[:l], nil
 	})
 
 	return s, nil

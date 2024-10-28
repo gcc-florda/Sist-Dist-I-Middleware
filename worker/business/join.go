@@ -1,6 +1,8 @@
 package business
 
 import (
+	"fmt"
+	"io"
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
@@ -17,13 +19,13 @@ type Join struct {
 	gameStorage   *common.TemporaryStorage
 }
 
-func NewJoin(base string, query string, id string, bufSize int) (*Join, error) {
-	r, err := common.NewTemporaryStorage(filepath.Join(".", base, query, "join", id, "review.results"))
+func NewJoin(base string, query string, id string, partition int, bufSize int) (*Join, error) {
+	r, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("%s_%d", query, partition), "join", id, "review.results"))
 	if err != nil {
 		return nil, err
 	}
 
-	g, err := common.NewTemporaryStorage(filepath.Join(".", base, query, "join", id, "game.results"))
+	g, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("%s_%d", query, partition), "join", id, "game.results"))
 	if err != nil {
 		return nil, err
 	}
@@ -38,18 +40,18 @@ func NewJoin(base string, query string, id string, bufSize int) (*Join, error) {
 }
 
 func (q *Join) AddReview(r *schema.ValidReview) error {
-	log.Debugf("Adding Review: %s", r.AppID)
 	err := q.addReview(r.AppID)
 	if err != nil {
+		log.Debugf("Action: Saving Review to Join | Result: Error | Error: %s", err)
 		return err
 	}
 	return nil
 }
 
 func (q *Join) AddGame(r *schema.GameName) error {
-	log.Debugf("Adding Game: %s - %s", r.AppID, r.Name)
-	_, err := q.gameStorage.AppendLine(r.Serialize())
+	_, err := q.gameStorage.Append(r.Serialize())
 	if err != nil {
+		log.Debugf("Action: Saving Game to Join | Result: Error | Error: %s", err)
 		return err
 	}
 	return nil
@@ -62,17 +64,21 @@ func (q *Join) addReview(appId string) error {
 	if err != nil {
 		return err
 	}
-	scanner, err := q.reviewStorage.Scanner()
+	scanner, err := q.reviewStorage.ScannerDeserialize(func(d *common.Deserializer) error {
+		_, err := schema.ReviewCounterDeserialize(d)
+		return err
+	})
 	if err != nil {
 		return err
 	}
 	for scanner.Scan() {
 		b := scanner.Bytes()
-		lb := len(b) + 2
+		lb := len(b)
 		d := common.NewDeserializer(b)
 		l, err := schema.ReviewCounterDeserialize(&d)
 		if err != nil {
-			return err
+			log.Debugf("Action: Deserialize from file | Result: Error | Error: %s | Data: %v", err, b)
+			continue
 		}
 
 		if l.AppID != appId {
@@ -81,16 +87,17 @@ func (q *Join) addReview(appId string) error {
 		}
 
 		l.Count += 1
-
-		nb := append(l.Serialize(), '@', '*')
+		nb := l.Serialize()
 
 		_, err = file.Seek(offset, 0)
 		if err != nil {
+			log.Debugf("Action: Moving Offset | Result: Error | Error: %s", err)
 			return err
 		}
 
 		_, err = file.Write(nb)
 		if err != nil {
+			log.Debugf("Action: Writing | Result: Error | Error: %s", err)
 			return err
 		}
 
@@ -99,6 +106,7 @@ func (q *Join) addReview(appId string) error {
 
 	// Check for any error during scanning
 	if err := scanner.Err(); err != nil {
+		log.Debugf("Action: Reading from file | Result: Error | Error: %s", err)
 		return err
 	}
 
@@ -108,8 +116,8 @@ func (q *Join) addReview(appId string) error {
 		Count: 1,
 	}
 	b := c.Serialize()
-
-	_, err = file.Write(append(b, '\n'))
+	file.Seek(0, io.SeekEnd)
+	_, err = file.Write(b)
 	if err != nil {
 		return err
 	}
@@ -118,39 +126,12 @@ func (q *Join) addReview(appId string) error {
 }
 
 func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
-	cache := common.NewJoinCache[string, *schema.ReviewCounter](q.state.bufSize)
+	cache := common.NewJoinCache[string, *schema.ReviewCounter](1)
 	cr := make(chan schema.Partitionable, q.state.bufSize)
 	ce := make(chan error, 1)
 	go func() {
 		defer close(cr)
 		defer close(ce)
-		q.gameStorage.Reset()
-		q.reviewStorage.Reset()
-
-		gss, err := q.gameStorage.Scanner()
-		if err != nil {
-			ce <- err
-			return
-		}
-		rss, err := q.reviewStorage.Scanner()
-		if err != nil {
-			ce <- err
-			return
-		}
-
-		nextReview := func() (*schema.ReviewCounter, error) {
-			if rss.Scan() {
-				b := rss.Bytes()
-				d := common.NewDeserializer(b)
-				r, err := schema.ReviewCounterDeserialize(&d)
-				if err != nil {
-					return nil, err
-				}
-				return r, nil
-			}
-			return nil, nil
-		}
-
 		tryJoin := func(g *schema.GameName) error {
 			v, ok := cache.Get(g.AppID)
 			if ok {
@@ -162,13 +143,22 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 				cr <- nrc
 				return nil
 			}
-			for {
-				r, err := nextReview()
+
+			q.reviewStorage.Reset()
+			rss, err := q.reviewStorage.ScannerDeserialize(func(d *common.Deserializer) error {
+				_, err := schema.ReviewCounterDeserialize(d)
+				return err
+			})
+			if err != nil {
+				return err
+			}
+
+			for rss.Scan() {
+				b := rss.Bytes()
+				d := common.NewDeserializer(b)
+				r, err := schema.ReviewCounterDeserialize(&d)
 				if err != nil {
 					return err
-				}
-				if r == nil {
-					break
 				}
 				if r.AppID == g.AppID {
 					nrc := &schema.NamedReviewCounter{
@@ -181,6 +171,7 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 					cache.TryPut(r.AppID, r)
 				}
 			}
+
 			cr <- &schema.NamedReviewCounter{
 				Name:  g.Name,
 				Count: 0,
@@ -188,9 +179,16 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 			return nil
 		}
 
+		q.gameStorage.Reset()
+		gss, err := q.gameStorage.ScannerDeserialize(func(d *common.Deserializer) error {
+			_, err := schema.GameNameDeserialize(d)
+			return err
+		})
+		if err != nil {
+			ce <- err
+			return
+		}
 		for gss.Scan() {
-			q.reviewStorage.Reset()
-
 			b := gss.Bytes()
 			d := common.NewDeserializer(b)
 			gn, err := schema.GameNameDeserialize(&d)
@@ -198,7 +196,6 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 				ce <- err
 				return
 			}
-			log.Debugf("Game: %s - %s", gn.AppID, gn.Name)
 			err = tryJoin(gn)
 			if err != nil {
 				ce <- err
@@ -231,12 +228,12 @@ func (q *Join) Shutdown(delete bool) {
 	if delete {
 		err := q.gameStorage.Delete()
 		if err != nil {
-			log.Errorf("Error while deleting the file: %s", err)
+			log.Errorf("Action: Deleting JOIN Game File | Result: Error | Error: %s", err)
 		}
 
 		err = q.reviewStorage.Delete()
 		if err != nil {
-			log.Errorf("Error while deleting the file: %s", err)
+			log.Errorf("Action: Deleting JOIN Game File | Result: Error | Error: %s", err)
 		}
 	}
 }

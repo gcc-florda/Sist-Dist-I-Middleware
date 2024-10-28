@@ -2,7 +2,6 @@ package business_test
 
 import (
 	"bufio"
-	"bytes"
 	"middleware/common"
 	"middleware/worker/business"
 	"middleware/worker/schema"
@@ -11,8 +10,8 @@ import (
 	"testing"
 )
 
-var gtp = filepath.Join(".", "test_files", "test", "join", "1", "game.results")
-var rtp = filepath.Join(".", "test_files", "test", "join", "1", "review.results")
+var gtp = filepath.Join(".", "test_files", "test_1", "join", "1", "game.results")
+var rtp = filepath.Join(".", "test_files", "test_1", "join", "1", "review.results")
 
 func deleteFiles() {
 	os.Remove(gtp)
@@ -28,17 +27,17 @@ func recreateFiles() {
 	if err != nil {
 		panic("Error creating files")
 	}
-	gts.AppendLine((&schema.GameName{
+	gts.Append((&schema.GameName{
 		AppID: "1",
 		Name:  "Test_1",
 	}).Serialize())
 
-	gts.AppendLine((&schema.GameName{
+	gts.Append((&schema.GameName{
 		AppID: "3",
 		Name:  "Test_3",
 	}).Serialize())
 
-	gts.AppendLine((&schema.GameName{
+	gts.Append((&schema.GameName{
 		AppID: "4",
 		Name:  "Test_4",
 	}).Serialize())
@@ -49,22 +48,22 @@ func recreateFiles() {
 	if err != nil {
 		panic("Error creating files")
 	}
-	rts.AppendLine((&schema.ReviewCounter{
+	rts.Append((&schema.ReviewCounter{
 		AppID: "1",
 		Count: 5,
 	}).Serialize())
 
-	rts.AppendLine((&schema.ReviewCounter{
+	rts.Append((&schema.ReviewCounter{
 		AppID: "2",
 		Count: 50,
 	}).Serialize())
 
-	rts.AppendLine((&schema.ReviewCounter{
+	rts.Append((&schema.ReviewCounter{
 		AppID: "3",
 		Count: 55,
 	}).Serialize())
 
-	rts.AppendLine((&schema.ReviewCounter{
+	rts.Append((&schema.ReviewCounter{
 		AppID: "4",
 		Count: 500,
 	}).Serialize())
@@ -74,7 +73,7 @@ func recreateFiles() {
 
 func TestJoinOutput(t *testing.T) {
 	recreateFiles()
-	j, err := business.NewJoin("test_files", "test", "1", 1)
+	j, err := business.NewJoin("test_files", "test", "1", 1, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +109,7 @@ loop:
 
 func TestJoinAddReview(t *testing.T) {
 	deleteFiles()
-	j, err := business.NewJoin("test_files", "test", "1", 1)
+	j, err := business.NewJoin("test_files", "test", "1", 1, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,21 +157,20 @@ func TestJoinAddReview(t *testing.T) {
 	f, _ := os.Open(rtp)
 	s := bufio.NewScanner(f)
 	s.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		raw := data
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil
 		}
-		// Look for the first occurrence of '@*'
-		if i := bytes.Index(data, []byte("@*")); i >= 0 {
-			// Return the data up to the delimiter '@*'
-			return i + 2, data[:i], nil
+
+		d := common.NewDeserializer(data)
+		_, err = schema.ReviewCounterDeserialize(&d)
+		if err != nil {
+			return 0, nil, nil
 		}
-		// If we're at EOF and there's remaining data, return it.
-		if atEOF {
-			return len(data), data, nil
-		}
-		// Request more data.
-		return 0, nil, nil
+		l := len(raw) - d.Buf.Len()
+		return l, raw[:l], nil
 	})
+	s.Buffer(make([]byte, 0, 12), 12)
 	i := 0
 	for s.Scan() {
 		b := s.Bytes()

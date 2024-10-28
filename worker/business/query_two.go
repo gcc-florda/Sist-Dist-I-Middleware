@@ -1,15 +1,35 @@
 package business
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"time"
 )
 
+func extractDecade(s string) (int, error) {
+	parsedDate, err := time.Parse("Jan 2, 2006", s)
+	if err != nil {
+		return 0, nil
+	}
+
+	// Extract the year
+	year := parsedDate.Year()
+
+	// Calculate the decade
+	return year / 10 * 10, nil
+}
+
 func Q2Filter(r *schema.Game) bool {
-	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.two.category"))
+	decade, err := extractDecade(r.ReleaseDate)
+	if err != nil {
+		log.Error("Can't extract decade from: %s", r.ReleaseDate)
+		return false
+	}
+	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.two.category")) && decade == common.Config.GetInt("query.two.decade")
 }
 
 func Q2Map(r *schema.Game) schema.Partitionable {
@@ -60,8 +80,8 @@ type Q2 struct {
 	storage *common.TemporaryStorage
 }
 
-func NewQ2(base string, stage string, id string, top int) (*Q2, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "query_two", stage, id, "results"))
+func NewQ2(base string, stage string, id string, partition int, top int) (*Q2, error) {
+	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_two_%d", partition), stage, id, "results"))
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +153,7 @@ func (q *Q2) Shutdown(delete bool) {
 	if delete {
 		err := q.storage.Delete()
 		if err != nil {
-			log.Errorf("Error while deleting the file: %s", err)
+			log.Errorf("Action: Deleting JOIN Game File | Result: Error | Error: %s", err)
 		}
 	}
 }

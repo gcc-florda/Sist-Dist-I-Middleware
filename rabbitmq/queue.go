@@ -30,7 +30,6 @@ func (q *Queue) Declare() {
 		nil,
 	)
 	common.FailOnError(err, "Failed to declare a queue")
-
 	q.Name = queue.Name
 }
 
@@ -58,7 +57,6 @@ func (q *Queue) Consume() <-chan amqp.Delivery {
 		false,
 		nil,
 	)
-
 	go func() {
 		term := make(chan os.Signal, 1)
 		signal.Notify(term, syscall.SIGTERM)
