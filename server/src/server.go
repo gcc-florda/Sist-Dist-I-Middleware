@@ -86,6 +86,14 @@ func (s *Server) HandleConnection(client *Client) {
 
 	log.Infof("Client connected: %s", client.Id)
 
+	err := client.SendId()
+
+	if err != nil {
+		log.Infof("Client disconnected: %s", client.Id)
+		s.RemoveClient(client)
+		return
+	}
+
 	for {
 		message, err := client.Recv()
 
@@ -125,6 +133,7 @@ func (s *Server) HandleConnection(client *Client) {
 			}
 		}
 	}
+
 }
 
 func (s *Server) sendData(to string, ser common.Serializable) {
@@ -412,5 +421,14 @@ func (s *Server) ConsumeResultsQ5() {
 
 		s.QueryFive.AddResult(msg.(*schema.NamedReviewCounter))
 		delivery.Ack(false)
+	}
+}
+
+func (s *Server) RemoveClient(client *Client) {
+	for i, c := range s.Clients {
+		if c == client {
+			s.Clients = append(s.Clients[:i], s.Clients[i+1:]...)
+			return
+		}
 	}
 }

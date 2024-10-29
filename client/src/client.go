@@ -28,6 +28,7 @@ type ClientConfig struct {
 }
 
 type Client struct {
+	Id         string
 	Config     ClientConfig
 	Connection net.Conn
 	Term       chan os.Signal
@@ -64,6 +65,13 @@ func (c *Client) StartClient() {
 
 	c.CreateSocket()
 	log.Infof("Connected to server at %s", c.Config.ServerAddress)
+
+	err := c.GetId()
+
+	if err != nil {
+		log.Criticalf("Failed to get client ID")
+		return
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -161,4 +169,22 @@ func (c *Client) SendBatch(batch common.Batch) {
 	message := batch.Serialize()
 
 	common.Send(message, c.Connection)
+}
+
+func (c *Client) GetId() error {
+	const maxRetries = 3
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		c.Id, err = common.Receive(c.Connection)
+		if err == nil {
+			log.Infof("Received client ID: %s", c.Id)
+			return nil
+		}
+
+		log.Criticalf("Failed to receive client ID: %v", i+1)
+		time.Sleep(5 * time.Second)
+	}
+
+	return err
 }

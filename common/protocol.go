@@ -7,16 +7,24 @@ import (
 	"net"
 )
 
-func Send(message string, conn net.Conn) {
+func Send(message string, conn net.Conn) error {
 	messageBytes := []byte(message)
 
 	buffer := new(bytes.Buffer)
 
 	err := binary.Write(buffer, binary.BigEndian, uint32(len(messageBytes)))
-	FailOnError(err, "Failed to write message length to buffer")
+
+	if err != nil {
+		log.Errorf("Failed to write message length to buffer %s", err)
+		return err
+	}
 
 	err = binary.Write(buffer, binary.BigEndian, messageBytes)
-	FailOnError(err, "Failed to write message to buffer")
+
+	if err != nil {
+		log.Errorf("Failed to write message to buffer %s", err)
+		return err
+	}
 
 	messageLength := buffer.Len()
 	bytesSent := 0
@@ -26,6 +34,8 @@ func Send(message string, conn net.Conn) {
 		FailOnError(err, "Failed to send bytes to server")
 		bytesSent += n
 	}
+
+	return nil
 }
 
 func Receive(conn net.Conn) (string, error) {

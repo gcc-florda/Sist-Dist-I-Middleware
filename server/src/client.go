@@ -26,3 +26,15 @@ func (c *Client) Close() {
 func (c *Client) Recv() (string, error) {
 	return common.Receive(c.Connection)
 }
+
+func (c *Client) SendId() error {
+	for retries := 0; retries < 3; retries++ {
+		if err := common.Send(c.Id.String(), c.Connection); err == nil {
+			return nil
+		} else if retries == 2 {
+			log.Errorf("Failed to send ID to client %s after 3 attempts", c.Id)
+			return err
+		}
+	}
+	return nil
+}
