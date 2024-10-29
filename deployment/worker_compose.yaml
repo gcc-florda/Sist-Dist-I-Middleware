@@ -11,5 +11,4 @@ worker:
     volumes:
       - ./architecture.yaml:/app/architecture.yaml
       - ./worker/common.yaml:/app/common.yaml
-      - ./worker/controllers.yaml:/app/controllers.yaml
       - ./deployment/controller_node_<<NODE_ID>>.yaml:/app/controllers.yaml
