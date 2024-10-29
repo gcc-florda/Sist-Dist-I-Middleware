@@ -264,7 +264,6 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 		defer close(ce)
 
 		idx, err := q.Q5Quantile()
-		log.Debugf("Got that quantile %d starts after the %d game", q.state.PercentileOver, idx)
 		if err != nil {
 			ce <- err
 			return
@@ -297,7 +296,6 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 			cr <- nrc
 			i++
 		}
-		log.Debugf("In total, there are %d games", i)
 		if err := s.Err(); err != nil {
 			ce <- err
 			return
