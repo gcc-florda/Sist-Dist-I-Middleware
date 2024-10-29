@@ -111,7 +111,7 @@ func CreateQ4S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
 			h, err := business.NewJoin(
 				common.Config.GetString("savepath"),
-				"query_three",
+				"query_four",
 				jobId.String(),
 				cfg.ReadFromPartition,
 				common.Config.GetInt("joinBuffer"),
@@ -146,7 +146,7 @@ func CreateQ5S2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
 			h, err := business.NewJoin(
 				common.Config.GetString("savepath"),
-				"query_three",
+				"query_five",
 				jobId.String(),
 				cfg.ReadFromPartition,
 				common.Config.GetInt("joinBuffer"),

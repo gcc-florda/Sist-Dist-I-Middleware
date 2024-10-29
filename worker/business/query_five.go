@@ -244,6 +244,9 @@ func NewQ5(base string, id string, partition int, pctOver int, bufSize int) (*Q5
 }
 
 func (q *Q5) Insert(rc *schema.NamedReviewCounter) error {
+	if rc.Count > 0 {
+		log.Debugf("Inserting Game: %s With Count: %d", rc.Name, rc.Count)
+	}
 	_, err := q.Storage.Append(rc.Serialize())
 	if err != nil {
 		return err
@@ -280,6 +283,10 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 		}
 		i := 0
 		for s.Scan() {
+			if i <= idx {
+				i++
+				continue
+			}
 			b := s.Bytes()
 			d := common.NewDeserializer(b)
 			nrc, err := schema.NamedReviewCounterDeserialize(&d)
@@ -287,12 +294,11 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 				ce <- err
 				return
 			}
-
-			cr <- nrc
-			i++
-			if i >= idx {
-				return
+			if nrc.Count > 0 {
+				log.Debugf("Sending Game: %s With Count: %d", nrc.Name, nrc.Count)
 			}
+			cr <- nrc
+
 		}
 
 		if err := s.Err(); err != nil {

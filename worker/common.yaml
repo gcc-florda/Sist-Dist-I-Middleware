@@ -9,11 +9,11 @@ query:
     top: 5
   four:
     category: action
-    positive: true
+    positive: false
     over: 5000
   five:
     category: action
-    positive: true
+    positive: false
     percentile: 90
 
 savepath: data

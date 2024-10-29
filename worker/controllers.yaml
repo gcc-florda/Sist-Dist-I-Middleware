@@ -21,22 +21,25 @@ controllers:
   # - type: "Q2S3"
   #   readFromPartition: 1
 
-  - type: "MFGQ3"
+  - type: "MFGQ5"
     readFromPartition: 1
-  - type: "MFGQ3"
+  - type: "MFGQ5"
     readFromPartition: 2
 
-  - type: "MFRQ3"
+  - type: "MFRQ5"
     readFromPartition: 1
-  - type: "MFRQ3"
+  - type: "MFRQ5"
+    readFromPartition: 2
+  - type: "MFRQ5"
+    readFromPartition: 3
+  - type: "MFRQ5"
+    readFromPartition: 4
+
+  - type: "Q5S2"
+    readFromPartition: 1
+  - type: "Q5S2"
     readFromPartition: 2
 
-
-  - type: "Q3S2"
-    readFromPartition: 1
-  - type: "Q3S2"
-    readFromPartition: 2
-
-  - type: "Q3S3"
+  - type: "Q5S3"
     readFromPartition: 1
   

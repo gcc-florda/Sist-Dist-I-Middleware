@@ -11,11 +11,6 @@ import (
 type DetectLanguage func(string) bool
 
 func Q4FilterGames(r *schema.Game) bool {
-	log.Debugf("game Genre are: %v", r.Genres)
-	log.Debugf("common query.four.category is %s", common.Config.GetString("query.four.category"))
-
-	log.Debugf("common.ContainsCaseInsensitive = %v", common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.four.category")))
-
 	return common.ContainsCaseInsensitive(r.Genres, common.Config.GetString("query.four.category"))
 }
 

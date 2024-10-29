@@ -77,7 +77,7 @@ func (c *Client) StartClient() {
 
 	common.Send(common.END, c.Connection)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(10 * time.Second)
 	log.Infof("All data sent to server. Exiting")
 }
 

@@ -144,7 +144,7 @@ func CreateQ5S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 				return nil, nil, err
 			}
 
-			return h, controller.NewEOFChecker("Q4_STAGE_3", uint(arcCfg.QueryFive.StageTwo.PartitionAmount)), nil
+			return h, controller.NewEOFChecker("Q5_STAGE_3", uint(arcCfg.QueryFive.StageTwo.PartitionAmount)), nil
 		},
 	)
 }

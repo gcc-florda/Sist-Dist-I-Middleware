@@ -165,6 +165,7 @@ func (q *Join) NextStage() (<-chan schema.Partitionable, <-chan error) {
 						Name:  g.Name,
 						Count: r.Count,
 					}
+
 					cr <- nrc
 					return nil
 				} else {
