@@ -63,10 +63,10 @@ controllers = {
 
 def create_node_definition(node_name: str):
     cpy = copy.deepcopy(worker_compose)
-    cpy['worker']['container_name'] = f"node_{node_name}"
+    cpy['worker']['container_name'] = f"node_{node_name.lower()}"
     cpy['worker']['volumes'][-1] = f"./configs/controller_node_{node_name}.yaml:/app/controllers.yaml"
     return {
-        node_name: cpy['worker']
+        node_name.lower(): cpy['worker']
     }
 
 def save_config(controller_name:str, i:int):

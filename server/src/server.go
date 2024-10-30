@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,6 +33,7 @@ type Server struct {
 	ExchangeReviews *rabbitmq.Exchange
 	Results         *rabbitmq.Results
 	ResultStores    map[common.JobID]*ResultStore
+	storeMu         sync.Mutex
 }
 
 func NewServer(ip string, port int) *Server {
@@ -48,6 +50,7 @@ func NewServer(ip string, port int) *Server {
 		ExchangeReviews: arc.MapFilter.Reviews.GetExchange(),
 		Results:         arc.Results,
 		ResultStores:    make(map[uuid.UUID]*ResultStore),
+		storeMu:         sync.Mutex{},
 	}
 
 	signal.Notify(server.Term, syscall.SIGTERM)
@@ -175,6 +178,8 @@ func (s *Server) broadcastData(to string, ser common.Serializable) {
 }
 
 func (s *Server) getDataStore(j common.JobID) (*ResultStore, error) {
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
 	store, ok := s.ResultStores[j]
 	if !ok {
 		store, err := NewResultStore(j)

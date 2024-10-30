@@ -82,7 +82,10 @@ func (q *Q4) NextStage() (<-chan schema.Partitionable, <-chan error) {
 
 		q.storage.Reset()
 
-		s, err := q.storage.Scanner()
+		s, err := q.storage.ScannerDeserialize(func(d *common.Deserializer) error {
+			_, err := schema.NamedReviewCounterDeserialize(d)
+			return err
+		})
 		if err != nil {
 			ce <- err
 			return
