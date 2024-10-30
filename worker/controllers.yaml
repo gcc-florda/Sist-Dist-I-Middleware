@@ -1,45 +1,42 @@
 controllers:
-  # - type: "MFGQ1"
-  #   readFromPartition: 1 # This is from what partition do I read. The partition amounts is in the architecture config
-  # - type: "MFGQ1"
-  #   readFromPartition: 2 # This is from what partition do I read. The partition amounts is in the architecture config
-  # - type: "Q1S2"
-  #   readFromPartition: 1
-  # - type: "Q1S2"
-  #   readFromPartition: 2
-  # - type: "Q1S3"
-  #   readFromPartition: 1 # For any Stage 3, this should always be one
+  - type: "MFGQ1"
+    readFromPartition: 1 # This is from what partition do I read. The partition amounts is in the architecture config
+  - type: "Q1S2"
+    readFromPartition: 1
+  - type: "Q1S3"
+    readFromPartition: 1 # For any Stage 3, this should always be one
+
 
   # - type: "MFGQ2"
   #   readFromPartition: 1
-  # - type: "MFGQ2"
-  #   readFromPartition: 2
   # - type: "Q2S2"
   #   readFromPartition: 1
-  # - type: "Q2S2"
-  #   readFromPartition: 2
   # - type: "Q2S3"
   #   readFromPartition: 1
 
-  - type: "MFGQ5"
-    readFromPartition: 1
-  - type: "MFGQ5"
-    readFromPartition: 2
+  # - type: "MFGQ3"
+  #   readFromPartition: 1
+  # - type: "MFRQ3"
+  #   readFromPartition: 1
+  # - type: "Q3S2"
+  #   readFromPartition: 1
+  # - type: "Q3S3"
+  #   readFromPartition: 1
 
-  - type: "MFRQ5"
-    readFromPartition: 1
-  - type: "MFRQ5"
-    readFromPartition: 2
-  - type: "MFRQ5"
-    readFromPartition: 3
-  - type: "MFRQ5"
-    readFromPartition: 4
+  # - type: "MFGQ4"
+  #   readFromPartition: 1
+  # - type: "MFRQ4"
+  #   readFromPartition: 1
+  # - type: "Q4S4"
+  #   readFromPartition: 1
+  # - type: "Q4S3"
+  #   readFromPartition: 1
 
-  - type: "Q5S2"
-    readFromPartition: 1
-  - type: "Q5S2"
-    readFromPartition: 2
-
-  - type: "Q5S3"
-    readFromPartition: 1
-  
+  # - type: "MFGQ5"
+  #   readFromPartition: 1
+  # - type: "MFRQ5"
+  #   readFromPartition: 1
+  # - type: "Q5S4"
+  #   readFromPartition: 1
+  # - type: "Q5S3"
+  #   readFromPartition: 1

@@ -69,7 +69,6 @@ func (s *Server) Start() error {
 	log.Infof("Server listening on %s", s.Address)
 
 	s.ConsumeResults()
-
 	for {
 		conn, err := s.Listener.Accept()
 		client := NewClient(conn)
