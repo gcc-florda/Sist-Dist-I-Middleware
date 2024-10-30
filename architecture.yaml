@@ -10,11 +10,11 @@ map_filter:
   query_five_games:
     partition_amount: 2
   query_three_reviews:
-    partition_amount: 2
+    partition_amount: 4
   query_four_reviews:
-    partition_amount: 2
+    partition_amount: 4
   query_five_reviews:
-    partition_amount: 2
+    partition_amount: 4
 
 query_one:
   stage_two:
@@ -30,13 +30,13 @@ query_two:
 
 query_three:
   stage_two:
-    partition_amount: 2
+    partition_amount: 16
   stage_three:
     partition_amount: 1
 
 query_four:
   stage_two:
-    partition_amount: 2
+    partition_amount: 4
   stage_three:
     partition_amount: 1
 
