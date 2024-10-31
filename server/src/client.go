@@ -48,30 +48,24 @@ func (c *Client) SendId() error {
 }
 
 func (c *Client) SendResultsQ1(q *QueryResultStore[*schema.SOCounter], wg *sync.WaitGroup) error {
-	log.Debugf("Waiting for Q1 results to be ready")
+	log.Infof("Waiting for Q1 results to be ready")
 	defer wg.Done()
 
 	for !q.Finished {
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 
-	log.Debugf("Q1 results are ready")
+	log.Infof("Q1 results are ready")
 
 	q.store.Reset()
-
-	log.Debugf("RESET store")
 
 	scanner, err := q.store.Scanner()
 	if err != nil {
 		return err
 	}
 
-	log.Debugf("Open scanner for file")
-
 	for scanner.Scan() {
 		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
-
-		log.Debugf("Sending RAW Q1 result: %s", result)
 
 		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q1}
 
@@ -81,23 +75,23 @@ func (c *Client) SendResultsQ1(q *QueryResultStore[*schema.SOCounter], wg *sync.
 			common.FailOnError(err, "Failed to serialize message") // UNREACHABLE
 		}
 
-		log.Debugf("Sending Q1 result: %s", messageSerialized)
 		c.Send(messageSerialized)
-		log.Debugf("Sent Q1 result: %s", messageSerialized)
 	}
 
-	log.Debug("Finished reading file")
+	log.Debug("Finished reading Q1 results file")
 
 	return nil
 }
 
 func (c *Client) SendResultsQ2(q *QueryResultStore[*schema.PlayedTime], wg *sync.WaitGroup) error {
-	log.Debugf("Waiting for Q2 results to be ready")
+	log.Infof("Waiting for Q2 results to be ready")
 	defer wg.Done()
 
 	for !q.Finished {
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
+
+	log.Infof("Q2 results are ready")
 
 	q.store.Reset()
 
@@ -107,14 +101,9 @@ func (c *Client) SendResultsQ2(q *QueryResultStore[*schema.PlayedTime], wg *sync
 	}
 
 	for scanner.Scan() {
-		b := scanner.Bytes()
-		d := common.NewDeserializer(b)
-		result, err := schema.PlayedTimeDeserialize(&d)
-		if err != nil {
-			return err
-		}
+		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
 
-		message := common.ClientMessage{Content: strings.Join(result.ToCSV(), ","), Type: common.Type_Results_Q2}
+		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q2}
 
 		messageSerialized, err := message.SerializeClientMessage()
 
@@ -124,17 +113,21 @@ func (c *Client) SendResultsQ2(q *QueryResultStore[*schema.PlayedTime], wg *sync
 
 		c.Send(messageSerialized)
 	}
+
+	log.Debug("Finished reading Q2 results file")
 
 	return nil
 }
 
 func (c *Client) SendResultsQ3(q *QueryResultStore[*schema.NamedReviewCounter], wg *sync.WaitGroup) error {
-	log.Debugf("Waiting for Q3 results to be ready")
+	log.Infof("Waiting for Q3 results to be ready")
 	defer wg.Done()
 
 	for !q.Finished {
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
+
+	log.Infof("Q3 results are ready")
 
 	q.store.Reset()
 
@@ -144,14 +137,9 @@ func (c *Client) SendResultsQ3(q *QueryResultStore[*schema.NamedReviewCounter], 
 	}
 
 	for scanner.Scan() {
-		b := scanner.Bytes()
-		d := common.NewDeserializer(b)
-		result, err := schema.NamedReviewCounterDeserialize(&d)
-		if err != nil {
-			return err
-		}
+		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
 
-		message := common.ClientMessage{Content: strings.Join(result.ToCSV(), ","), Type: common.Type_Results_Q3}
+		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q3}
 
 		messageSerialized, err := message.SerializeClientMessage()
 
@@ -161,17 +149,21 @@ func (c *Client) SendResultsQ3(q *QueryResultStore[*schema.NamedReviewCounter], 
 
 		c.Send(messageSerialized)
 	}
+
+	log.Debug("Finished reading Q3 results file")
 
 	return nil
 }
 
 func (c *Client) SendResultsQ4(q *QueryResultStore[*schema.NamedReviewCounter], wg *sync.WaitGroup) error {
-	log.Debugf("Waiting for Q4 results to be ready")
+	log.Infof("Waiting for Q4 results to be ready")
 	defer wg.Done()
 
 	for !q.Finished {
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
+
+	log.Infof("Q4 results are ready")
 
 	q.store.Reset()
 
@@ -181,14 +173,9 @@ func (c *Client) SendResultsQ4(q *QueryResultStore[*schema.NamedReviewCounter], 
 	}
 
 	for scanner.Scan() {
-		b := scanner.Bytes()
-		d := common.NewDeserializer(b)
-		result, err := schema.NamedReviewCounterDeserialize(&d)
-		if err != nil {
-			return err
-		}
+		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
 
-		message := common.ClientMessage{Content: strings.Join(result.ToCSV(), ","), Type: common.Type_Results_Q4}
+		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q4}
 
 		messageSerialized, err := message.SerializeClientMessage()
 
@@ -198,17 +185,21 @@ func (c *Client) SendResultsQ4(q *QueryResultStore[*schema.NamedReviewCounter], 
 
 		c.Send(messageSerialized)
 	}
+
+	log.Debug("Finished reading Q4 results file")
 
 	return nil
 }
 
 func (c *Client) SendResultsQ5(q *QueryResultStore[*schema.NamedReviewCounter], wg *sync.WaitGroup) error {
-	log.Debugf("Waiting for Q5 results to be ready")
+	log.Infof("Waiting for Q5 results to be ready")
 	defer wg.Done()
 
 	for !q.Finished {
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
+
+	log.Infof("Q5 results are ready")
 
 	q.store.Reset()
 
@@ -218,14 +209,9 @@ func (c *Client) SendResultsQ5(q *QueryResultStore[*schema.NamedReviewCounter], 
 	}
 
 	for scanner.Scan() {
-		b := scanner.Bytes()
-		d := common.NewDeserializer(b)
-		result, err := schema.NamedReviewCounterDeserialize(&d)
-		if err != nil {
-			return err
-		}
+		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
 
-		message := common.ClientMessage{Content: strings.Join(result.ToCSV(), ","), Type: common.Type_Results_Q5}
+		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q5}
 
 		messageSerialized, err := message.SerializeClientMessage()
 
@@ -235,6 +221,8 @@ func (c *Client) SendResultsQ5(q *QueryResultStore[*schema.NamedReviewCounter], 
 
 		c.Send(messageSerialized)
 	}
+
+	log.Debug("Finished reading Q5 results file")
 
 	return nil
 }
