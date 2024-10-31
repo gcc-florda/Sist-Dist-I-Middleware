@@ -28,4 +28,6 @@ go.work.sum
 .DS_Store
 
 configs
+results
+datasets
 out_compose.yaml

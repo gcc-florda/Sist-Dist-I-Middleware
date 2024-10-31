@@ -1,6 +1,7 @@
 import yaml
 import copy
 from pathlib import Path
+import shutil
 
 CLIENTS_NR = 2
 
@@ -90,8 +91,12 @@ def traverse(controllers: dict, architecture: dict):
         for x in v:
             r.append(x)
     return r
-            
+
+shutil.rmtree("./configs", ignore_errors=True)     
 Path("./configs").mkdir(exist_ok=True)
+
+shutil.rmtree("./results", ignore_errors=True)
+Path("./results").mkdir(exist_ok=True)
 
 compose = {
     "services": {
@@ -103,9 +108,12 @@ compose = {
     }
 }
 
+
 for i in range(1, CLIENTS_NR + 1):
+    Path(f"./results/client_{i}").mkdir(exist_ok=True)
     cpy = copy.deepcopy(client_compose)
     cpy["client"]["container_name"] = f"client_{i}"
+    cpy["client"]["volumes"][-1] = f"./results/client_{i}:/app/results"
     compose["services"][f"client_{i}"] = cpy["client"]
 
 for worker_def in traverse(controllers, architecture):
