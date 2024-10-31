@@ -263,6 +263,7 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 		defer close(cr)
 		defer close(ce)
 
+		var val uint32
 		idx, err := q.Q5Quantile()
 		if err != nil {
 			ce <- err
@@ -282,10 +283,30 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 		}
 		i := 0
 		for s.Scan() {
-			if i < idx {
-				i++
-				continue
+			if i == idx {
+				b := s.Bytes()
+				d := common.NewDeserializer(b)
+				nrc, err := schema.NamedReviewCounterDeserialize(&d)
+				if err != nil {
+					ce <- err
+					return
+				}
+				val = nrc.Count
+				break
 			}
+			i++
+		}
+
+		q.sortedStorage.Reset()
+		s, err = q.sortedStorage.ScannerDeserialize(func(d *common.Deserializer) error {
+			_, err = schema.NamedReviewCounterDeserialize(d)
+			return err
+		})
+		if err != nil {
+			ce <- err
+			return
+		}
+		for s.Scan() {
 			b := s.Bytes()
 			d := common.NewDeserializer(b)
 			nrc, err := schema.NamedReviewCounterDeserialize(&d)
@@ -293,9 +314,12 @@ func (q *Q5) NextStage() (<-chan schema.Partitionable, <-chan error) {
 				ce <- err
 				return
 			}
-			cr <- nrc
+			if nrc.Count >= val {
+				cr <- nrc
+			}
 			i++
 		}
+
 		if err := s.Err(); err != nil {
 			ce <- err
 			return
