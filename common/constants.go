@@ -1,19 +1,13 @@
 package common
 
 const (
-	ACK = "ACK\n"
-	END = "END\n"
-)
-
-const (
 	TypeGame   = 1
 	TypeReview = 2
 )
 
 const (
-	ExchangeNameRawData = "raw_data"
-	ExchangeNameGames   = "games"
-	ExchangeNameReviews = "reviews"
+	BROADCAST_ROUTING_KEY_GAMES   = "GAMES"
+	BROADCAST_ROUTING_KEY_REVIEWS = "REVIEWS"
 )
 
 const (

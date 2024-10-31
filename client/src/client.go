@@ -74,8 +74,7 @@ func (c *Client) StartClient() {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	wg.Add(1)
+	wg.Add(2)
 
 	go c.SendData(c.Config.GamesFilePath, &wg)
 
@@ -83,9 +82,10 @@ func (c *Client) StartClient() {
 
 	wg.Wait()
 
-	common.Send(common.END, c.Connection)
+	c.AskForResults()
 
-	time.Sleep(10 * time.Second)
+	c.CloseConnection()
+
 	log.Infof("All data sent to server. Exiting")
 }
 
@@ -105,21 +105,21 @@ func (c *Client) SendData(path string, wg *sync.WaitGroup) {
 
 	defer file.Close()
 
-	var pathType string
+	var messageType int
 
 	if strings.Contains(path, "games") {
-		pathType = "1"
+		messageType = common.Type_GAMES
 	} else if strings.Contains(path, "reviews") {
-		pathType = "2"
+		messageType = common.Type_REVIEWS
 	}
 
 	reader := bufio.NewReader(file)
 
-	err = c.SendBatches(reader, pathType)
+	err = c.SendBatches(reader, messageType)
 	common.FailOnError(err, fmt.Sprintf("Failed to send data from file %s", path))
 }
 
-func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
+func (c *Client) SendBatches(reader *bufio.Reader, messageType int) error {
 	lastBatch := common.NewBatch()
 
 	// Ignore header
@@ -134,30 +134,40 @@ func (c *Client) SendBatches(reader *bufio.Reader, pathType string) error {
 	for {
 		line, err := reader.ReadString('\n')
 
-		line = pathType + "," + line
+		var content string
 
 		if err == io.EOF {
+			content = common.EOF
+		} else if err != nil {
+			return err
+		} else {
+			content = line
+		}
+
+		clientMessage := common.ClientMessage{Content: content, Type: messageType}
+		clientMessageSerialized, err := clientMessage.SerializeClientMessage()
+
+		common.FailOnError(err, "Failed to serialize message") // UNREACHABLE
+
+		if clientMessage.IsEOF() {
+			log.Debugf("Sending last batch with EOF %s", clientMessage.Content)
 			c.SendBatch(lastBatch)
-			common.Send(pathType+",EOF", c.Connection)
-			log.Debugf("Seding EOF: %s", pathType+",EOF")
+			common.Send(clientMessageSerialized, c.Connection) // EOF
+			log.Debugf("Seding EOF: %s", clientMessageSerialized)
 			break
 		}
 
-		if err != nil {
-			return err
-		}
-
-		if !lastBatch.CanHandle(line, c.Config.BatchMaxAmount) {
+		if !lastBatch.CanHandle(clientMessageSerialized, c.Config.BatchMaxAmount) {
 			c.SendBatch(lastBatch)
 
 			lastBatch = common.NewBatch()
 		}
 
-		lastBatch.AppendData(line)
+		lastBatch.AppendData(clientMessageSerialized)
 		i++
 	}
 
-	log.Debugf("Stopped loop %d", i)
+	log.Debugf("Stopped Client loop %d", i)
 	return nil
 }
 
@@ -187,4 +197,50 @@ func (c *Client) GetId() error {
 	}
 
 	return err
+}
+
+func (c *Client) AskForResults() {
+	// ASKING FOR RESULTS
+	log.Debug("Asking for results")
+	clientMessage := common.ClientMessage{Content: c.Id, Type: common.Type_AskForResults}
+	clientMessageSerialized, err := clientMessage.SerializeClientMessage()
+
+	common.FailOnError(err, "Failed to serialize message") // UNREACHABLE
+
+	common.Send(clientMessageSerialized, c.Connection)
+
+	log.Debugf("Asked for results: %s", clientMessageSerialized)
+
+	// GETTING RESULTS
+	for {
+		message, err := common.Receive(c.Connection)
+
+		if err != nil {
+			log.Errorf("Connection with Server has been closed")
+			return
+		}
+
+		messageDeserialized, err := common.DeserializeClientMessage(message)
+
+		common.FailOnError(err, "Failed to deserialize message") // UNREACHABLE
+
+		if messageDeserialized.IsEndWithResults() {
+			log.Info("Finish reading results")
+			return
+		} else if messageDeserialized.IsQueryResult() {
+			log.Infof("Received query result: %s", messageDeserialized.Content)
+		} else {
+			log.Errorf("Unexpected message from server")
+			return
+		}
+	}
+}
+
+func (c *Client) CloseConnection() {
+	clientMessage := common.ClientMessage{Content: c.Id, Type: common.Type_CloseConnection}
+	clientMessageSerialized, err := clientMessage.SerializeClientMessage()
+
+	common.FailOnError(err, "Failed to serialize message") // UNREACHABLE
+
+	common.Send(clientMessageSerialized, c.Connection)
 }
