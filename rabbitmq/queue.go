@@ -43,7 +43,7 @@ func (q *Queue) Bind(exchange *Exchange, routingKey string) {
 	)
 	common.FailOnError(err, "Failed to bind a queue")
 
-	log.Debugf("Bound queue %s to exchange %s with routing key %s", q.Name, exchange.Name, routingKey)
+	log.Debugf("Action: Queue Bond | Queue: %s | Exchange: %s | Routing key: %s | Result: Success", q.Name, exchange.Name, routingKey)
 }
 
 func (q *Queue) Consume() <-chan amqp.Delivery {
@@ -61,8 +61,8 @@ func (q *Queue) Consume() <-chan amqp.Delivery {
 		term := make(chan os.Signal, 1)
 		signal.Notify(term, syscall.SIGTERM)
 		<-term
-		log.Debugf("Cancelling channel for queue %s", q.Name)
 		q.Channel.Cancel(q.Name, false)
+		log.Debugf("Action: Cancel queue connection | Queue: %s | Success: true", q.Name)
 	}()
 
 	common.FailOnError(err, "Failed to consume messages")

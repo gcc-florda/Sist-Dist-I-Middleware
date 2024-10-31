@@ -71,16 +71,17 @@ func (s *Server) Start() error {
 	s.ConsumeResults()
 	for {
 		conn, err := s.Listener.Accept()
+		if err != nil {
+			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
+			break
+		}
 		client := NewClient(conn)
 		s.Clients = append(s.Clients, client)
-		if err != nil {
-			log.Errorf("Failed to accept connection: %s", err)
-			continue
-		}
 
 		go s.HandleConnection(client)
-
 	}
+
+	return nil
 }
 
 func (s *Server) HandleConnection(client *Client) {

@@ -55,7 +55,7 @@ func (r *Rabbit) NewExchange(name string, exchangeType string) *Exchange {
 
 	r.Exchanges = append(r.Exchanges, ex)
 
-	log.Debugf("Declared exchange %s", name)
+	log.Debugf("Action: Declared Exchange | Exchange: %s | Result: Success", name)
 
 	return &ex
 }
@@ -76,7 +76,7 @@ func (r *Rabbit) NewQueue(name string) *Queue {
 
 	r.Queues = append(r.Queues, q)
 
-	log.Debugf("Declared queue %s", name)
+	log.Debugf("Action: Declared Queue | Queue: %s | Result: Success", name)
 
 	return &q
 }
