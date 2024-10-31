@@ -180,3 +180,20 @@ func GetRoutingKey(line string) string {
 
 	panic("ni idea man")
 }
+
+func CastQueryTypeToName(qType int) string {
+	switch qType {
+	case Type_Results_Q1:
+		return Results_Q1
+	case Type_Results_Q2:
+		return Results_Q2
+	case Type_Results_Q3:
+		return Results_Q3
+	case Type_Results_Q4:
+		return Results_Q4
+	case Type_Results_Q5:
+		return Results_Q5
+	}
+
+	return ""
+}

@@ -99,6 +99,19 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 	return t.file.Write(data)
 }
 
+func (t *TemporaryStorage) AppendString(data string) (int, error) {
+	if t.file == nil {
+		log.Error("file is nil, returning closed file error")
+		return -1, &ClosedFileError{
+			filepath: t.filepath,
+		}
+	}
+	log.Debug("Appending string to file")
+	t.file.Seek(0, io.SeekEnd)
+	log.Debug("Set Seek to 0")
+	return t.file.WriteString(data)
+}
+
 func (t *TemporaryStorage) AppendLine(data []byte) (int, error) {
 	return t.Append(data)
 }
