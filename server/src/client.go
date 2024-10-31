@@ -4,7 +4,6 @@ import (
 	"middleware/common"
 	"middleware/worker/schema"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -65,7 +64,7 @@ func (c *Client) SendResultsQ1(q *QueryResultStore[*schema.SOCounter], wg *sync.
 	}
 
 	for scanner.Scan() {
-		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
+		result := scanner.Text()
 
 		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q1}
 
@@ -101,7 +100,7 @@ func (c *Client) SendResultsQ2(q *QueryResultStore[*schema.PlayedTime], wg *sync
 	}
 
 	for scanner.Scan() {
-		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
+		result := scanner.Text()
 
 		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q2}
 
@@ -137,7 +136,7 @@ func (c *Client) SendResultsQ3(q *QueryResultStore[*schema.NamedReviewCounter], 
 	}
 
 	for scanner.Scan() {
-		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
+		result := scanner.Text()
 
 		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q3}
 
@@ -173,7 +172,7 @@ func (c *Client) SendResultsQ4(q *QueryResultStore[*schema.NamedReviewCounter], 
 	}
 
 	for scanner.Scan() {
-		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
+		result := scanner.Text()
 
 		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q4}
 
@@ -209,7 +208,7 @@ func (c *Client) SendResultsQ5(q *QueryResultStore[*schema.NamedReviewCounter], 
 	}
 
 	for scanner.Scan() {
-		result := strings.Trim(strings.Join(strings.Split(string(scanner.Bytes()), " "), ","), "\n")
+		result := scanner.Text()
 
 		message := common.ClientMessage{Content: result, Type: common.Type_Results_Q5}
 

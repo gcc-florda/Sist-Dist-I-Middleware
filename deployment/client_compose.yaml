@@ -8,3 +8,4 @@ client:
     volumes:
       - ./datasets:/app/datasets
       - ./client/config.yaml:/app/config.yaml
+      - ./results/client_{{CLIENT_ID}}:/app/results

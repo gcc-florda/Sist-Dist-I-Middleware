@@ -2,7 +2,6 @@ package src
 
 import (
 	"bufio"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"middleware/common"
@@ -30,17 +29,32 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	Id           string
-	Config       ClientConfig
-	Connection   net.Conn
-	Term         chan os.Signal
-	ResultStores map[int]*common.TemporaryStorage
+	Id         string
+	Config     ClientConfig
+	Connection net.Conn
+	Term       chan os.Signal
+	Results    map[int]*common.TemporaryStorage
+}
+
+func assertNoErrTemp(p string) *common.TemporaryStorage {
+	s, err := common.NewTemporaryStorage(p)
+	if err != nil {
+		panic("Not a problem for now")
+	}
+	return s
 }
 
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		Config: config,
 		Term:   make(chan os.Signal, 1),
+		Results: map[int]*common.TemporaryStorage{
+			common.Type_Results_Q1: assertNoErrTemp(filepath.Join(".", "results", "query_one.csv")),
+			common.Type_Results_Q2: assertNoErrTemp(filepath.Join(".", "results", "query_two.csv")),
+			common.Type_Results_Q3: assertNoErrTemp(filepath.Join(".", "results", "query_three.csv")),
+			common.Type_Results_Q4: assertNoErrTemp(filepath.Join(".", "results", "query_four.csv")),
+			common.Type_Results_Q5: assertNoErrTemp(filepath.Join(".", "results", "query_five.csv")),
+		},
 	}
 
 	signal.Notify(client.Term, syscall.SIGTERM)
@@ -153,7 +167,6 @@ func (c *Client) SendBatches(reader *bufio.Reader, messageType int) error {
 		common.FailOnError(err, "Failed to serialize message") // UNREACHABLE
 
 		if clientMessage.IsEOF() {
-			log.Debugf("Sending last batch with EOF %s", clientMessage.Content)
 			c.SendBatch(lastBatch)
 			common.Send(clientMessageSerialized, c.Connection) // EOF
 			log.Debugf("Seding EOF: %s", clientMessageSerialized)
@@ -203,6 +216,11 @@ func (c *Client) GetId() error {
 }
 
 func (c *Client) AskForResults() {
+	defer func() {
+		for key := range c.Results {
+			c.Results[key].Close()
+		}
+	}()
 	// ASKING FOR RESULTS
 	log.Debug("Asking for results")
 	clientMessage := common.ClientMessage{Content: c.Id, Type: common.Type_AskForResults}
@@ -228,11 +246,15 @@ func (c *Client) AskForResults() {
 		common.FailOnError(err, "Failed to deserialize message") // UNREACHABLE
 
 		if messageDeserialized.IsEndWithResults() {
-			log.Info("Finish reading results")
+			log.Infof("Finish reading results for all queries")
 			return
 		} else if messageDeserialized.IsQueryResult() {
-			log.Infof("Received query result: %s", messageDeserialized.Content)
-			c.StoreQueyResult(messageDeserialized)
+			writeTo, ok := c.Results[messageDeserialized.Type]
+			if !ok {
+				log.Errorf("Action: Rerceived Query Result | Result: No place to store | Data: %s", message)
+				continue
+			}
+			writeTo.AppendLine([]byte(messageDeserialized.Content))
 		} else {
 			log.Errorf("Unexpected message from server")
 			return
@@ -247,54 +269,4 @@ func (c *Client) CloseConnection() {
 	common.FailOnError(err, "Failed to serialize message") // UNREACHABLE
 
 	common.Send(clientMessageSerialized, c.Connection)
-}
-
-func (c *Client) StoreQueyResult(message common.ClientMessage) error {
-	if c.ResultStores == nil {
-		log.Debug("Creating new map for result stores")
-		c.ResultStores = make(map[int]*common.TemporaryStorage)
-	}
-
-	store, ok := c.ResultStores[message.Type]
-
-	log.Debugf("Find store? %t", ok)
-
-	if !ok {
-		cast := common.CastQueryTypeToName(message.Type)
-		filename := filepath.Join(".", "results", c.Id, fmt.Sprintf("%s.csv", cast))
-
-		log.Debugf("Creating temporary storage for %s with filename [%s]", cast, filename)
-
-		store, err := common.NewTemporaryStorage(filename)
-		if err != nil {
-			return err
-		}
-
-		log.Debugf("Created storage %s", store)
-
-		c.ResultStores[message.Type] = store
-
-		log.Debugf("Log new store for %s", cast)
-	}
-
-	f, err := store.File()
-	if err != nil {
-		log.Debug("Failed to get file from store")
-		return err
-	}
-
-	writer := csv.NewWriter(f)
-
-	if err := writer.Write(strings.Split(message.Content, ",")); err != nil {
-		log.Criticalf("Failed to append string to store: %v", err)
-		return err
-	}
-
-	log.Debug("Writting string to CSV")
-
-	writer.Flush()
-
-	log.Debug("Flushed")
-
-	return nil
 }

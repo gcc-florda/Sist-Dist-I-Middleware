@@ -2,7 +2,6 @@ package common
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -99,21 +98,8 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 	return t.file.Write(data)
 }
 
-func (t *TemporaryStorage) AppendString(data string) (int, error) {
-	if t.file == nil {
-		log.Error("file is nil, returning closed file error")
-		return -1, &ClosedFileError{
-			filepath: t.filepath,
-		}
-	}
-	log.Debug("Appending string to file")
-	t.file.Seek(0, io.SeekEnd)
-	log.Debug("Set Seek to 0")
-	return t.file.WriteString(data)
-}
-
 func (t *TemporaryStorage) AppendLine(data []byte) (int, error) {
-	return t.Append(data)
+	return t.Append(append(data, '\n'))
 }
 
 func (t *TemporaryStorage) Reset() {
@@ -162,23 +148,6 @@ func (t *TemporaryStorage) Scanner() (*bufio.Scanner, error) {
 	}
 
 	s := bufio.NewScanner(t.file)
-	s.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		if atEOF && len(data) == 0 {
-			return 0, nil, nil
-		}
-
-		// Look for the first occurrence of '~~~~'
-		if i := bytes.Index(data, []byte{0x00, 0x00, 0x00, 0x00}); i >= 0 {
-			// Return the data up to the delimiter '~~~~'
-			return i + 4, data[:i+4], nil
-		}
-		// If we're at EOF and there's remaining data, return it.
-		if atEOF {
-			return len(data), data, nil
-		}
-		// Request more data.
-		return 0, nil, nil
-	})
 
 	return s, nil
 }

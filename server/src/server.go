@@ -110,11 +110,9 @@ func (s *Server) HandleConnection(client *Client) {
 
 		switch messageDeserialized.Type {
 		case common.Type_GAMES:
-			log.Debugf("message is Type_GAMES")
 			s.Broadcast(client, messageDeserialized)
 
 		case common.Type_REVIEWS:
-			log.Debugf("message is Type_REVIEWS")
 			s.Broadcast(client, messageDeserialized)
 
 		case common.Type_AskForResults:
@@ -133,19 +131,23 @@ func (s *Server) HandleConnection(client *Client) {
 }
 
 func (s *Server) Broadcast(client *Client, message common.ClientMessage) {
-	log.Debug("About to broadcast message")
-
-	var eoftt uint32 = 0
-	content := make([]byte, 4)
-	binary.BigEndian.PutUint32(content, eoftt)
 
 	ser := common.NewSerializer()
 
 	if message.IsEOF() {
-		log.Debug("About to broadcast EOF")
+		var eoftt uint32 = 0
+		if message.Type == common.Type_REVIEWS {
+			log.Debugf("About to broadcast EOF REVIEWS %s", client.Id)
+			eoftt = 1
+		} else {
+			log.Debugf("About to broadcast EOF GAMES %s", client.Id)
+			eoftt = 0
+		}
+
+		content := make([]byte, 4)
+		binary.BigEndian.PutUint32(content, eoftt)
 		s.BroadcastData(message.Type, common.NewMessage(client.Id, common.ProtocolMessage_Control, content), true)
 	} else {
-		log.Debug("About to broadcast Data")
 		s.BroadcastData(message.Type, common.NewMessage(client.Id, common.ProtocolMessage_Data, ser.WriteUint8(uint8(message.Type)).WriteString(message.Content).ToBytes()), false)
 	}
 }
@@ -167,12 +169,10 @@ func (s *Server) BroadcastData(exType int, ser common.Serializable, fanout bool)
 	for _, key := range partitionedExchange.GetChannels() {
 		cl := partitionedExchange.GetChannelSize(key)
 		if fanout {
-			log.Debugf("Broadcasting fanout to %d channels", cl)
 			for i := 1; i <= cl; i++ {
 				ex.Publish(fmt.Sprintf("%s_%d", key, i), ser)
 			}
 		} else {
-			log.Debugf("Broadcasting to signle %d channel", cl)
 			ex.Publish(fmt.Sprintf("%s_%d", key, s.rand.Intn(cl)+1), ser)
 		}
 	}
@@ -211,6 +211,8 @@ func (s *Server) SendResults(client *Client, message common.ClientMessage) {
 }
 
 func (s *Server) GetDataStore(j common.JobID) (*ResultStore, error) {
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
 	store, ok := s.ResultStores[j]
 	if !ok {
 		store, err := NewResultStore(j)
