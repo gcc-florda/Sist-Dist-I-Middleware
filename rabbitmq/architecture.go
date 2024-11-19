@@ -16,7 +16,7 @@ type Architecture struct {
 	rabbit     *Rabbit
 }
 
-func CreateArchitecture(cfg *ArchitectureConfig) *Architecture {
+func CreateArchitecture(cfg *common.ArchitectureConfig) *Architecture {
 	rabbit := NewRabbit()
 
 	return &Architecture{
@@ -116,7 +116,7 @@ type MapFilterArchitecture struct {
 	Reviews *PartitionedExchange
 }
 
-func createGamePartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *PartitionedExchange {
+func createGamePartitionedExchange(rabbit *Rabbit, cfg *common.ArchitectureConfig) *PartitionedExchange {
 	gex := rabbit.NewExchange("MAP_FILTER_GAMES", common.ExchangeDirect)
 
 	channels := map[string]*PartitionedQueues{
@@ -132,7 +132,7 @@ func createGamePartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *Par
 	}
 }
 
-func createReviewPartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *PartitionedExchange {
+func createReviewPartitionedExchange(rabbit *Rabbit, cfg *common.ArchitectureConfig) *PartitionedExchange {
 	gex := rabbit.NewExchange("MAP_FILTER_REVIEWS", common.ExchangeDirect)
 
 	channels := map[string]*PartitionedQueues{
@@ -146,7 +146,7 @@ func createReviewPartitionedExchange(rabbit *Rabbit, cfg *ArchitectureConfig) *P
 	}
 }
 
-func CreateMapFilterArchitecture(rabbit *Rabbit, cfg *ArchitectureConfig) *MapFilterArchitecture {
+func CreateMapFilterArchitecture(rabbit *Rabbit, cfg *common.ArchitectureConfig) *MapFilterArchitecture {
 	return &MapFilterArchitecture{
 		Games:   createGamePartitionedExchange(rabbit, cfg),
 		Reviews: createReviewPartitionedExchange(rabbit, cfg),
@@ -169,7 +169,7 @@ func createStage(rabbit *Rabbit, partitionAmount int, name string) *PartitionedE
 	}
 }
 
-func CreateTwoStageArchitecture(rabbit *Rabbit, cfg *TwoStageConfig, name string) *TwoStageArchitecture {
+func CreateTwoStageArchitecture(rabbit *Rabbit, cfg *common.TwoStageConfig, name string) *TwoStageArchitecture {
 	return &TwoStageArchitecture{
 		StageTwo:   createStage(rabbit, cfg.StageTwo.PartitionAmount, fmt.Sprintf("%s_S2", name)),
 		StageThree: createStage(rabbit, 1, fmt.Sprintf("%s_S3", name)),

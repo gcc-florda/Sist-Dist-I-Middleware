@@ -176,3 +176,19 @@ func GetRoutingKey(line string) string {
 
 	panic("ni idea man")
 }
+
+type ManagementMessage struct {
+	Content string
+}
+
+func (mm ManagementMessage) IsName() bool {
+	return !mm.IsAlive() && !mm.IsHealthCheck()
+}
+
+func (mm ManagementMessage) IsAlive() bool {
+	return mm.Content == "ALV\n"
+}
+
+func (mm ManagementMessage) IsHealthCheck() bool {
+	return mm.Content == "HCK\n"
+}

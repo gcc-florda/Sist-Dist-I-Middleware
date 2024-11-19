@@ -1,4 +1,4 @@
-package rabbitmq
+package common
 
 import "github.com/spf13/viper"
 
@@ -34,7 +34,7 @@ type ArchitectureConfig struct {
 	QueryFive TwoStageConfig `mapstructure:"query_five"`
 }
 
-func LoadConfig(configFilePath string) *ArchitectureConfig {
+func LoadArchitectureConfig(configFilePath string) *ArchitectureConfig {
 	viper.SetConfigFile(configFilePath)
 
 	if err := viper.ReadInConfig(); err != nil {

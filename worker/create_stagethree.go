@@ -8,7 +8,7 @@ import (
 	"middleware/worker/controller"
 )
 
-func CreateQ1S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateQ1S3(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("Q1S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -30,7 +30,7 @@ func CreateQ1S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 	)
 }
 
-func CreateQ2S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateQ2S3(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("Q2S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -60,7 +60,7 @@ func CreateQ2S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 	)
 }
 
-func CreateQ3S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateQ3S3(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("Q3S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -89,7 +89,7 @@ func CreateQ3S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 	)
 }
 
-func CreateQ4S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateQ4S3(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("Q4S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -119,7 +119,7 @@ func CreateQ4S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc 
 	)
 }
 
-func CreateQ5S3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateQ5S3(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("Q5S3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{

@@ -37,7 +37,7 @@ type Server struct {
 }
 
 func NewServer(ip string, port int) *Server {
-	arc := rabbitmq.CreateArchitecture(rabbitmq.LoadConfig("./architecture.yaml"))
+	arc := rabbitmq.CreateArchitecture(common.LoadArchitectureConfig("./architecture.yaml"))
 
 	server := &Server{
 		Address:         fmt.Sprintf("%s:%d", ip, port),

@@ -10,7 +10,7 @@ import (
 	"github.com/pemistahl/lingua-go"
 )
 
-func CreateMFGQ1(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFGQ1(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("MFGQ1_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -31,7 +31,7 @@ func CreateMFGQ1(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	)
 }
 
-func CreateMFGQ2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFGQ2(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("MFGQ2_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -52,7 +52,7 @@ func CreateMFGQ2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	)
 }
 
-func CreateMFGQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFGQ3(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("MFGQ3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -73,7 +73,7 @@ func CreateMFGQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	)
 }
 
-func CreateMFGQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFGQ4(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("MFGQ4_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -94,7 +94,7 @@ func CreateMFGQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	)
 }
 
-func CreateMFGQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFGQ5(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("MFGQ5_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -115,7 +115,7 @@ func CreateMFGQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	)
 }
 
-func CreateMFRQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFRQ3(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("MFRQ3_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
@@ -136,7 +136,7 @@ func CreateMFRQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	)
 }
 
-func CreateMFRQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFRQ4(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	detector := lingua.NewLanguageDetectorBuilder().
 		FromLanguages(lingua.English, lingua.Spanish).
 		WithMinimumRelativeDistance(0.9).
@@ -167,7 +167,7 @@ func CreateMFRQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 	)
 }
 
-func CreateMFRQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
+func CreateMFRQ5(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller {
 	return controller.NewController(
 		fmt.Sprintf("MFRQ5_%d", cfg.ReadFromPartition),
 		[]*rabbitmq.Queue{
