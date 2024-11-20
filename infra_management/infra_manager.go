@@ -4,23 +4,22 @@ import (
 	"fmt"
 	"middleware/common"
 	"net"
-	"strings"
 	"sync"
 	"time"
 )
 
 type InfraManager struct {
-	Id       int
-	Address  string
-	Listener net.Listener
-	Workers  []WorkerStatus
+	Id             int
+	Address        string
+	Listener       net.Listener
+	WorkersManager *WorkerStatusManager
 }
 
 func NewInfraManager(id int, ip string, port int) *InfraManager {
 	return &InfraManager{
-		Id:      id,
-		Address: fmt.Sprintf("%s:%d", ip, port),
-		Workers: []WorkerStatus{},
+		Id:             id,
+		Address:        fmt.Sprintf("%s:%d", ip, port),
+		WorkersManager: NewWorkerStatusManager(),
 	}
 }
 
@@ -73,14 +72,13 @@ func (m *InfraManager) HandleWorker(conn net.Conn) error {
 		return fmt.Errorf("expecting Worker Name")
 	}
 
-	workerStatus := m.GetWorkerStatusByName(workerName.Content)
+	workerStatus := m.WorkersManager.GetWorkerStatusByName(workerName.Content)
 
 	if workerStatus == nil {
 		return fmt.Errorf("worker not found")
 	}
 
-	workerStatus.Connection = conn
-	workerStatus.Alive = true
+	workerStatus.UpdateWorkerStatus(true, conn)
 
 	m.Watch(workerStatus)
 
@@ -89,24 +87,21 @@ func (m *InfraManager) HandleWorker(conn net.Conn) error {
 
 func (m *InfraManager) Watch(worker *WorkerStatus) {
 	for {
-		if common.Send("HCK\n", worker.Connection) != nil {
-			worker.Alive = false
-			worker.Connection.Close()
+		if worker.Send("HCK\n") != nil {
+			worker.UpdateWorkerStatus(false, nil)
 			break
 		}
 
-		message, err := common.Receive(worker.Connection)
+		message, err := worker.Receive()
 
 		if err != nil {
-			worker.Alive = false
-			worker.Connection.Close()
+			worker.UpdateWorkerStatus(false, nil)
 			break
 		} else {
 			messageAlive := common.ManagementMessage{Content: message}
 
 			if !messageAlive.IsAlive() {
-				worker.Alive = false
-				worker.Connection.Close()
+				worker.UpdateWorkerStatus(false, nil)
 				break
 			}
 		}
@@ -117,23 +112,12 @@ func (m *InfraManager) Watch(worker *WorkerStatus) {
 
 func (m *InfraManager) WatchDeadWorkers() {
 	for {
-		for i := range m.Workers {
-			if !m.Workers[i].Alive {
-				// TODO: I have to revive the worker
-			}
+		deadWorker := m.WorkersManager.GetDeadWorker()
+
+		if deadWorker != nil {
+			deadWorker.Revive()
 		}
 	}
-}
-
-func (m *InfraManager) GetWorkerStatusByName(name string) *WorkerStatus {
-	for i := range m.Workers {
-		archName := strings.Split(m.Workers[i].Name, "_")[0]
-		if archName == name {
-			return &m.Workers[i]
-		}
-	}
-
-	return nil
 }
 
 func (m *InfraManager) LoadArchitecture() error {
@@ -142,79 +126,79 @@ func (m *InfraManager) LoadArchitecture() error {
 	// MAP FILTER
 
 	for i := range arcCfg.MapFilter.QueryOneGames.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFGQ1_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ1_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryTwoGames.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFGQ2_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ2_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryThreeGames.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFGQ3_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ3_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFourGames.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFGQ4_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ4_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFiveGames.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFGQ5_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ5_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryThreeReviews.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFRQ3_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFRQ3_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFourReviews.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFRQ4_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFRQ4_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFiveReviews.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("MFRQ5_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("MFRQ5_%d", i))
 	}
 
 	// S2
 
 	for i := range arcCfg.QueryOne.StageTwo.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q1S2_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q1S2_%d", i))
 	}
 
 	for i := range arcCfg.QueryTwo.StageTwo.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q2S2_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q2S2_%d", i))
 	}
 
 	for i := range arcCfg.QueryThree.StageTwo.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q3S2_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q3S2_%d", i))
 	}
 
 	for i := range arcCfg.QueryFour.StageTwo.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q4S2_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q4S2_%d", i))
 	}
 
 	for i := range arcCfg.QueryFive.StageTwo.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q5S2_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q5S2_%d", i))
 	}
 
 	// S3
 
 	for i := range arcCfg.QueryOne.StageThree.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q1S3_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q1S3_%d", i))
 	}
 
 	for i := range arcCfg.QueryTwo.StageThree.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q2S3_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q2S3_%d", i))
 	}
 
 	for i := range arcCfg.QueryThree.StageThree.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q3S3_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q3S3_%d", i))
 	}
 
 	for i := range arcCfg.QueryFour.StageThree.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q4S3_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q4S3_%d", i))
 	}
 
 	for i := range arcCfg.QueryFive.StageThree.PartitionAmount {
-		m.Workers = append(m.Workers, *NewWorkerStatus(fmt.Sprintf("Q5S3_%d", i)))
+		m.WorkersManager.AddWorker(fmt.Sprintf("Q5S3_%d", i))
 	}
 
 	return nil
