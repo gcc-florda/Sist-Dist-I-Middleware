@@ -186,9 +186,9 @@ func (mm ManagementMessage) IsName() bool {
 }
 
 func (mm ManagementMessage) IsAlive() bool {
-	return mm.Content == "ALV\n"
+	return mm.Content == "ALV"
 }
 
 func (mm ManagementMessage) IsHealthCheck() bool {
-	return mm.Content == "HCK\n"
+	return mm.Content == "HCK"
 }

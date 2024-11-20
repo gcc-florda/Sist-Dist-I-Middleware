@@ -59,7 +59,7 @@ func (m *InfraManager) ListenForWorkers() {
 func (m *InfraManager) HandleWorker(conn net.Conn) error {
 	defer conn.Close()
 
-	message, err := common.Receive(conn) // acordatse que el worker nos tiene que mandar node_mfgq1_1\n
+	message, err := common.Receive(conn)
 
 	if err != nil {
 		log.Errorf("Action: Receive Message from Worker | Result: Error | Error: %s", err)

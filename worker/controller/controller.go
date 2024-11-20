@@ -5,11 +5,13 @@ import (
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
 	"middleware/worker/schema"
+	"net"
 	"os"
 	"os/signal"
 	"reflect"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/op/go-logging"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -64,31 +66,38 @@ type messageFromQueue struct {
 }
 
 type Controller struct {
-	name         string
-	rcvFrom      []*rabbitmq.Queue
-	to           []*rabbitmq.Exchange
-	handlerChan  chan *messageToSend
-	protocol     Protocol
-	factory      HandlerFactory
-	handlers     map[common.JobID]*HandlerRuntime
-	housekeeping chan *HandlerRuntime
-	runtimeWG    sync.WaitGroup
+	name          string
+	rcvFrom       []*rabbitmq.Queue
+	to            []*rabbitmq.Exchange
+	handlerChan   chan *messageToSend
+	protocol      Protocol
+	factory       HandlerFactory
+	handlers      map[common.JobID]*HandlerRuntime
+	housekeeping  chan *HandlerRuntime
+	runtimeWG     sync.WaitGroup
+	managerAddess string
+	Connection    net.Conn
 }
 
 func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
+	v, err := common.InitConfig("./config.yaml")
+	if err != nil {
+		log.Criticalf("%s", err)
+	}
 
 	mts := make(chan *messageToSend, 50)
 	h := make(chan *HandlerRuntime, 50)
 
 	c := &Controller{
-		name:         controllerName,
-		rcvFrom:      from,
-		to:           to,
-		protocol:     protocol,
-		handlerChan:  mts,
-		factory:      handlerF,
-		handlers:     make(map[common.JobID]*HandlerRuntime),
-		housekeeping: h,
+		name:          controllerName,
+		rcvFrom:       from,
+		to:            to,
+		protocol:      protocol,
+		handlerChan:   mts,
+		factory:       handlerF,
+		handlers:      make(map[common.JobID]*HandlerRuntime),
+		housekeeping:  h,
+		managerAddess: v.GetString("server.address"),
 	}
 	// Artificially add one to keep it spinning as long as we don't get a shutdown
 	c.runtimeWG.Add(1)
@@ -98,6 +107,10 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 		<-term
 		// Remove the artificial one
 		log.Debugf("Received shutdown signal in controller")
+		if c.Connection != nil {
+			log.Debugf("Shuting down connection with manager")
+			c.Connection.Close()
+		}
 		c.runtimeWG.Done()
 	}()
 	return c
@@ -151,8 +164,64 @@ func (q *Controller) broadcast(m common.Serializable) {
 	}
 }
 
+func (c *Controller) ReportToManager() {
+	for {
+		log.Debugf("Connecting controller %s to manager", c.name)
+		conn, err := net.Dial("tcp", c.managerAddess)
+		if err != nil {
+			log.Errorf("Error connecting controller %s to manager", c.name)
+			time.Sleep(4 * time.Second)
+			continue
+		}
+
+		c.Connection = conn
+
+		log.Debugf("Sending controller name %s to manager", c.name)
+		if common.Send(c.name, c.Connection) != nil {
+			log.Errorf("Error sending controller name %s to manager", c.name)
+			c.Connection.Close()
+			time.Sleep(4 * time.Second)
+			continue
+		}
+
+		log.Debugf("Listening for manager messages for controller %s", c.name)
+		for {
+			message, err := common.Receive(c.Connection)
+
+			if err != nil {
+				log.Errorf("Error receiving manager messages for controller %s", c.name)
+				c.Connection.Close()
+				time.Sleep(4 * time.Second)
+				break
+			}
+
+			log.Debugf("Received message from manager: %s", message)
+
+			messageHealthCheck := common.ManagementMessage{Content: message}
+
+			if !messageHealthCheck.IsHealthCheck() {
+				log.Errorf("Expecting HealthCheck message from manager but received %s", messageHealthCheck)
+				continue
+			}
+
+			if common.Send("ALV", c.Connection) != nil {
+				log.Errorf("Error sending ALV to manager for controller %s", c.name)
+				c.Connection.Close()
+				time.Sleep(4 * time.Second)
+				break
+			}
+
+			log.Debugf("Sent ALV to manager for controller %s", c.name)
+		}
+		log.Debugf("Finish listening for manager messages for controller %s", c.name)
+	}
+}
+
 func (q *Controller) Start() {
 	var end sync.WaitGroup
+
+	end.Add(1)
+	go q.ReportToManager()
 
 	end.Add(1)
 	go func() {

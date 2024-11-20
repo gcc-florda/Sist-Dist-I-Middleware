@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"middleware/common"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -70,8 +72,11 @@ func (wsm *WorkerStatusManager) AddWorker(workerName string) {
 func (wsm *WorkerStatusManager) GetWorkerStatusByName(name string) *WorkerStatus {
 	wsm.mutex.RLock()
 	defer wsm.mutex.RUnlock()
+	workerName := fmt.Sprintf("node_%s", strings.ToLower(name))
+	log.Debugf("Searching for worker %s", workerName)
+
 	for i := range wsm.Workers {
-		if wsm.Workers[i].Name == name {
+		if wsm.Workers[i].Name == workerName {
 			return wsm.Workers[i]
 		}
 	}
