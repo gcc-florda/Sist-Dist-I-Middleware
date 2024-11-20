@@ -3,7 +3,6 @@ package main
 import (
 	"middleware/common"
 	"net"
-	"strings"
 	"sync"
 )
 
@@ -72,8 +71,7 @@ func (wsm *WorkerStatusManager) GetWorkerStatusByName(name string) *WorkerStatus
 	wsm.mutex.RLock()
 	defer wsm.mutex.RUnlock()
 	for i := range wsm.Workers {
-		archName := strings.Split(wsm.Workers[i].Name, "_")[0]
-		if archName == name {
+		if wsm.Workers[i].Name == name {
 			return wsm.Workers[i]
 		}
 	}

@@ -59,7 +59,7 @@ func (m *InfraManager) ListenForWorkers() {
 func (m *InfraManager) HandleWorker(conn net.Conn) error {
 	defer conn.Close()
 
-	message, err := common.Receive(conn)
+	message, err := common.Receive(conn) // acordatse que el worker nos tiene que mandar node_mfgq1_1\n
 
 	if err != nil {
 		log.Errorf("Action: Receive Message from Worker | Result: Error | Error: %s", err)
@@ -126,7 +126,7 @@ func (m *InfraManager) LoadArchitecture() error {
 	// MAP FILTER
 
 	for i := range arcCfg.MapFilter.QueryOneGames.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ1_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfgq1_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryTwoGames.PartitionAmount {
