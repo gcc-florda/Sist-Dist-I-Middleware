@@ -24,7 +24,7 @@ func NewWorkerStatus(name string) *WorkerStatus {
 func (w *WorkerStatus) Send(message string) error {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
-	return common.Send("HCK\n", w.Connection)
+	return common.Send(message, w.Connection)
 }
 
 func (w *WorkerStatus) Receive() (string, error) {

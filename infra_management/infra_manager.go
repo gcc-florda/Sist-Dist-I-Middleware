@@ -87,7 +87,7 @@ func (m *InfraManager) HandleWorker(conn net.Conn) error {
 
 func (m *InfraManager) Watch(worker *WorkerStatus) {
 	for {
-		if worker.Send("HCK\n") != nil {
+		if worker.Send("HCK") != nil {
 			worker.UpdateWorkerStatus(false, nil)
 			break
 		}
@@ -130,75 +130,75 @@ func (m *InfraManager) LoadArchitecture() error {
 	}
 
 	for i := range arcCfg.MapFilter.QueryTwoGames.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ2_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfgq2_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryThreeGames.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ3_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfgq3_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFourGames.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ4_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfgq4_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFiveGames.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFGQ5_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfgq5_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryThreeReviews.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFRQ3_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfrq3_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFourReviews.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFRQ4_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfrq4_%d", i))
 	}
 
 	for i := range arcCfg.MapFilter.QueryFiveReviews.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("MFRQ5_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_mfrq5_%d", i))
 	}
 
 	// S2
 
 	for i := range arcCfg.QueryOne.StageTwo.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q1S2_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q1s2_%d", i))
 	}
 
 	for i := range arcCfg.QueryTwo.StageTwo.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q2S2_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q2s2_%d", i))
 	}
 
 	for i := range arcCfg.QueryThree.StageTwo.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q3S2_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q3s2_%d", i))
 	}
 
 	for i := range arcCfg.QueryFour.StageTwo.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q4S2_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q4s2_%d", i))
 	}
 
 	for i := range arcCfg.QueryFive.StageTwo.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q5S2_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q5s2_%d", i))
 	}
 
 	// S3
 
 	for i := range arcCfg.QueryOne.StageThree.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q1S3_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q1s3_%d", i))
 	}
 
 	for i := range arcCfg.QueryTwo.StageThree.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q2S3_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q2s3_%d", i))
 	}
 
 	for i := range arcCfg.QueryThree.StageThree.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q3S3_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q3s3_%d", i))
 	}
 
 	for i := range arcCfg.QueryFour.StageThree.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q4S3_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q4s3_%d", i))
 	}
 
 	for i := range arcCfg.QueryFive.StageThree.PartitionAmount {
-		m.WorkersManager.AddWorker(fmt.Sprintf("Q5S3_%d", i))
+		m.WorkersManager.AddWorker(fmt.Sprintf("node_q5s3_%d", i))
 	}
 
 	return nil
