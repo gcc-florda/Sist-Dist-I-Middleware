@@ -95,7 +95,15 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 		}
 	}
 	t.file.Seek(0, io.SeekEnd)
-	return t.file.Write(data)
+	w, err := t.file.Write(data)
+	if err != nil {
+		return w, err
+	}
+	err = t.file.Sync()
+	if err != nil {
+		return w, err
+	}
+	return w, nil
 }
 
 func (t *TemporaryStorage) AppendLine(data []byte) (int, error) {
