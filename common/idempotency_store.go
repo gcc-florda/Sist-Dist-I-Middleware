@@ -25,7 +25,7 @@ func (s *IdempotencyStore) AlreadyProcessed(id *IdempotencyID) bool {
 	if !ok {
 		return false
 	}
-	return last.identifier == id.identifier
+	return last.sequence == id.sequence
 }
 
 func (s *IdempotencyStore) LastForOrigin(og string) (*IdempotencyID, error) {
@@ -34,4 +34,18 @@ func (s *IdempotencyStore) LastForOrigin(og string) (*IdempotencyID, error) {
 		return nil, errors.New("the given origin doesn't have a IdempotencyID")
 	}
 	return last, nil
+}
+
+func (s *IdempotencyStore) saveLast(id *IdempotencyID) {
+	og := id.origin
+	this, ok := s.last_id_per_og[og]
+	if !ok || this.sequence < id.sequence {
+		s.Save(id)
+	}
+}
+
+func (s *IdempotencyStore) Merge(other *IdempotencyStore) {
+	for id := range other.last_id_per_og {
+		s.saveLast(other.last_id_per_og[id])
+	}
 }

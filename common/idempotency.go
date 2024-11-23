@@ -3,17 +3,17 @@ package common
 import "fmt"
 
 type IdempotencyID struct {
-	origin     string
-	identifier uint32
+	origin   string
+	sequence uint32
 }
 
 func (id *IdempotencyID) String() string {
-	return fmt.Sprintf("%s-%d", id.origin, id.identifier)
+	return fmt.Sprintf("%s-%d", id.origin, id.sequence)
 }
 
 func (id *IdempotencyID) Serialize() []byte {
 	s := NewSerializer()
-	return s.WriteUint32(id.identifier).WriteString(id.origin).ToBytes()
+	return s.WriteUint32(id.sequence).WriteString(id.origin).ToBytes()
 }
 
 func IdempotencyIDDeserialize(d *Deserializer) (*IdempotencyID, error) {
@@ -28,7 +28,7 @@ func IdempotencyIDDeserialize(d *Deserializer) (*IdempotencyID, error) {
 	}
 
 	return &IdempotencyID{
-		origin:     o,
-		identifier: id,
+		origin:   o,
+		sequence: id,
 	}, nil
 }
