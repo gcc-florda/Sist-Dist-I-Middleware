@@ -30,4 +30,5 @@ go.work.sum
 configs
 results
 datasets
+worker_files
 out_compose.yaml
