@@ -66,11 +66,11 @@ func init() {
 	s := common.NewSerializer()
 
 	b := s.
-		WriteUint32(1).WriteUint32(1).
-		WriteUint32(2).WriteUint32(2).
-		WriteUint32(3).WriteUint32(3).
-		WriteUint32(4).WriteUint32(4).
-		WriteUint32(5).WriteUint32(5).
+		WriteUint32(1).WriteString("A").WriteUint32(1).
+		WriteUint32(1).WriteString("B").WriteUint32(2).
+		WriteUint32(2).WriteString("A").WriteUint32(3).
+		WriteUint32(2).WriteString("B").WriteUint32(4).
+		WriteUint32(3).WriteString("A").WriteUint32(5).
 		ToBytes()
 
 	write_to_test_file("sequential_state_ok", b)
@@ -89,7 +89,7 @@ func TestLoadSavedStateSequentialOk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
-	lastId, state, err := common.LoadSavedState(
+	lastIds, state, err := common.LoadSavedState(
 		stg,
 		StateTestDeserialize,
 		func(old *StateTest, new *StateTest) *StateTest {
@@ -101,8 +101,15 @@ func TestLoadSavedStateSequentialOk(t *testing.T) {
 		},
 	)
 
-	if lastId != 5 {
-		t.Fatalf("The last read IdempotencyID is not the expected %d - %d", lastId, 5)
+	a, _ := lastIds.LastForOrigin("A")
+	b, _ := lastIds.LastForOrigin("B")
+
+	if a.String() != "A-3" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-3")
+	}
+
+	if b.String() != "B-2" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-5")
 	}
 
 	if state.count != 15 {
@@ -115,7 +122,7 @@ func TestLoadSavedStateOverwriteOk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
-	lastId, state, err := common.LoadSavedState(
+	lastIds, state, err := common.LoadSavedState(
 		stg,
 		StateTestDeserialize,
 		nil,
@@ -124,8 +131,15 @@ func TestLoadSavedStateOverwriteOk(t *testing.T) {
 		},
 	)
 
-	if lastId != 5 {
-		t.Fatalf("The last read IdempotencyID is not the expected %d - %d", lastId, 5)
+	a, _ := lastIds.LastForOrigin("A")
+	b, _ := lastIds.LastForOrigin("B")
+
+	if a.String() != "A-3" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-3")
+	}
+
+	if b.String() != "B-2" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-5")
 	}
 
 	if state.count != 5 {
@@ -138,7 +152,7 @@ func TestLoadSavedStateSequentialCorrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
-	lastId, state, err := common.LoadSavedState(
+	lastIds, state, err := common.LoadSavedState(
 		stg,
 		StateTestDeserialize,
 		nil,
@@ -146,9 +160,15 @@ func TestLoadSavedStateSequentialCorrupt(t *testing.T) {
 			count: 0,
 		},
 	)
+	a, _ := lastIds.LastForOrigin("A")
+	b, _ := lastIds.LastForOrigin("B")
 
-	if lastId != 4 {
-		t.Fatalf("The last read IdempotencyID is not the expected %d - %d", lastId, 4)
+	if a.String() != "A-2" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-3")
+	}
+
+	if b.String() != "B-2" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-5")
 	}
 
 	if state.count != 4 {
@@ -159,9 +179,11 @@ func TestLoadSavedStateSequentialCorrupt(t *testing.T) {
 	if err != nil {
 		log.Fatalf("Failed to open or create file: %v", err)
 	}
+
+	var linesize int64 = 4 + 4 + 1 + 4
 	// 4 bytes per uint32, 2 uint32 per line, 4 lines non corrupt
-	if fi.Size() != (4 * 2 * 4) {
-		log.Fatalf("The corrupt state was not truncated correctly %d - %d", fi.Size(), 4*2*4)
+	if fi.Size() != (4 * linesize) {
+		log.Fatalf("The corrupt state was not truncated correctly %d - %d", fi.Size(), 4*linesize)
 	}
 
 }
@@ -171,7 +193,7 @@ func TestLoadSavedStateOverwriteCorrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
-	lastId, state, err := common.LoadSavedState(
+	lastIds, state, err := common.LoadSavedState(
 		stg,
 		StateTestDeserialize,
 		nil,
@@ -180,8 +202,15 @@ func TestLoadSavedStateOverwriteCorrupt(t *testing.T) {
 		},
 	)
 
-	if lastId != 4 {
-		t.Fatalf("The last read IdempotencyID is not the expected %d - %d", lastId, 4)
+	a, _ := lastIds.LastForOrigin("A")
+	b, _ := lastIds.LastForOrigin("B")
+
+	if a.String() != "A-2" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-3")
+	}
+
+	if b.String() != "B-2" {
+		t.Fatalf("The last read IdempotencyID is not the expected %s - %s", a, "A-5")
 	}
 
 	if state.count != 4 {
@@ -192,9 +221,12 @@ func TestLoadSavedStateOverwriteCorrupt(t *testing.T) {
 	if err != nil {
 		log.Fatalf("Failed to open or create file: %v", err)
 	}
+
+	var linesize int64 = 4 + 4 + 1 + 4
+
 	// 4 bytes per uint32, 2 uint32 per line, 4 lines non corrupt
-	if fi.Size() != (4 * 2 * 4) {
-		log.Fatalf("The corrupt state was not truncated correctly %d - %d", fi.Size(), 4*2*4)
+	if fi.Size() != (4 * linesize) {
+		log.Fatalf("The corrupt state was not truncated correctly %d - %d", fi.Size(), 4*linesize)
 	}
 
 }
