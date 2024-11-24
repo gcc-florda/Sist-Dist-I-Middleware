@@ -1,14 +1,15 @@
 manager:
-    container_name: manager_<<MANAGER_ID>>
-    build:
-      context: .
-      dockerfile: ./infra_management/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      - MANAGER_ID=<<MANAGER_ID>>
-    links:
-      - rabbitmq
-    volumes:
-      - ./architecture.yaml:/app/architecture.yaml
+  container_name: manager_<<MANAGER_ID>>
+  build:
+    context: .
+    dockerfile: ./infra_management/Dockerfile
+  environment:
+    - MANAGER_ID=<<MANAGER_ID>>
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+  links:
+    - rabbitmq
+  volumes:
+    - ./infra_management/config.yaml:/app/config.yaml
+    - ./architecture.yaml:/app/architecture.yaml

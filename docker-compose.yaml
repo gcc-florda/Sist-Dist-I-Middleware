@@ -5,22 +5,22 @@ services:
       dockerfile: ./client/Dockerfile
     container_name: client_1
     depends_on:
-      - server
+    - server
     volumes:
-      - ./datasets:/app/datasets
-      - ./client/config.yaml:/app/config.yaml
-      - ./results/client_1:/app/results
+    - ./datasets:/app/datasets
+    - ./client/config.yaml:/app/config.yaml
+    - ./results/client_1:/app/results
   client_2:
     build:
       context: .
       dockerfile: ./client/Dockerfile
     container_name: client_2
     depends_on:
-      - server
+    - server
     volumes:
-      - ./datasets:/app/datasets
-      - ./client/config.yaml:/app/config.yaml
-      - ./results/client_2:/app/results
+    - ./datasets:/app/datasets
+    - ./client/config.yaml:/app/config.yaml
+    - ./results/client_2:/app/results
   manager_1:
     build:
       context: .
@@ -30,10 +30,11 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
-      - MANAGER_ID=1
+    - MANAGER_ID=1
     links:
     - rabbitmq
     volumes:
+    - ./infra_management/config.yaml:/app/config.yaml
     - ./architecture.yaml:/app/architecture.yaml
   manager_2:
     build:
@@ -48,6 +49,7 @@ services:
     links:
     - rabbitmq
     volumes:
+    - ./infra_management/config.yaml:/app/config.yaml
     - ./architecture.yaml:/app/architecture.yaml
   manager_3:
     build:
@@ -62,6 +64,7 @@ services:
     links:
     - rabbitmq
     volumes:
+    - ./infra_management/config.yaml:/app/config.yaml
     - ./architecture.yaml:/app/architecture.yaml
   manager_4:
     build:
@@ -76,6 +79,7 @@ services:
     links:
     - rabbitmq
     volumes:
+    - ./infra_management/config.yaml:/app/config.yaml
     - ./architecture.yaml:/app/architecture.yaml
   mfgq1_1:
     build:
@@ -90,6 +94,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ1_1.yaml:/app/controllers.yaml
   mfgq1_2:
     build:
@@ -104,6 +109,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ1_2.yaml:/app/controllers.yaml
   mfgq2_1:
     build:
@@ -118,6 +124,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ2_1.yaml:/app/controllers.yaml
   mfgq2_2:
     build:
@@ -132,6 +139,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ2_2.yaml:/app/controllers.yaml
   mfgq3_1:
     build:
@@ -146,6 +154,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ3_1.yaml:/app/controllers.yaml
   mfgq3_2:
     build:
@@ -160,6 +169,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ3_2.yaml:/app/controllers.yaml
   mfgq4_1:
     build:
@@ -174,6 +184,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ4_1.yaml:/app/controllers.yaml
   mfgq4_2:
     build:
@@ -188,6 +199,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ4_2.yaml:/app/controllers.yaml
   mfgq5_1:
     build:
@@ -202,6 +214,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ5_1.yaml:/app/controllers.yaml
   mfgq5_2:
     build:
@@ -216,6 +229,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFGQ5_2.yaml:/app/controllers.yaml
   mfrq3_1:
     build:
@@ -230,6 +244,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFRQ3_1.yaml:/app/controllers.yaml
   mfrq3_2:
     build:
@@ -244,6 +259,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFRQ3_2.yaml:/app/controllers.yaml
   mfrq4_1:
     build:
@@ -258,6 +274,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFRQ4_1.yaml:/app/controllers.yaml
   mfrq4_2:
     build:
@@ -272,6 +289,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFRQ4_2.yaml:/app/controllers.yaml
   mfrq5_1:
     build:
@@ -286,6 +304,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFRQ5_1.yaml:/app/controllers.yaml
   mfrq5_2:
     build:
@@ -300,6 +319,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_MFRQ5_2.yaml:/app/controllers.yaml
   q1s2_1:
     build:
@@ -314,6 +334,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q1S2_1.yaml:/app/controllers.yaml
   q1s2_2:
     build:
@@ -328,6 +349,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q1S2_2.yaml:/app/controllers.yaml
   q1s3_1:
     build:
@@ -342,6 +364,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q1S3_1.yaml:/app/controllers.yaml
   q2s2_1:
     build:
@@ -356,6 +379,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q2S2_1.yaml:/app/controllers.yaml
   q2s2_2:
     build:
@@ -370,6 +394,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q2S2_2.yaml:/app/controllers.yaml
   q2s3_1:
     build:
@@ -384,6 +409,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q2S3_1.yaml:/app/controllers.yaml
   q3s2_1:
     build:
@@ -398,6 +424,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q3S2_1.yaml:/app/controllers.yaml
   q3s2_2:
     build:
@@ -412,6 +439,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q3S2_2.yaml:/app/controllers.yaml
   q3s2_3:
     build:
@@ -426,6 +454,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q3S2_3.yaml:/app/controllers.yaml
   q3s2_4:
     build:
@@ -440,6 +469,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q3S2_4.yaml:/app/controllers.yaml
   q3s2_5:
     build:
@@ -454,6 +484,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q3S2_5.yaml:/app/controllers.yaml
   q3s2_6:
     build:
@@ -468,6 +499,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q3S2_6.yaml:/app/controllers.yaml
   q3s3_1:
     build:
@@ -482,6 +514,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q3S3_1.yaml:/app/controllers.yaml
   q4s2_1:
     build:
@@ -496,6 +529,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q4S2_1.yaml:/app/controllers.yaml
   q4s2_2:
     build:
@@ -510,6 +544,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q4S2_2.yaml:/app/controllers.yaml
   q4s2_3:
     build:
@@ -524,6 +559,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q4S2_3.yaml:/app/controllers.yaml
   q4s2_4:
     build:
@@ -538,6 +574,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q4S2_4.yaml:/app/controllers.yaml
   q4s3_1:
     build:
@@ -552,6 +589,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q4S3_1.yaml:/app/controllers.yaml
   q5s2_1:
     build:
@@ -566,6 +604,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q5S2_1.yaml:/app/controllers.yaml
   q5s2_2:
     build:
@@ -580,6 +619,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q5S2_2.yaml:/app/controllers.yaml
   q5s2_3:
     build:
@@ -594,6 +634,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q5S2_3.yaml:/app/controllers.yaml
   q5s2_4:
     build:
@@ -608,6 +649,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q5S2_4.yaml:/app/controllers.yaml
   q5s3_1:
     build:
@@ -622,6 +664,7 @@ services:
     volumes:
     - ./architecture.yaml:/app/architecture.yaml
     - ./worker/common.yaml:/app/common.yaml
+    - ./worker/controller/config.yaml:/app/controller/config.yaml
     - ./configs/controller_node_Q5S3_1.yaml:/app/controllers.yaml
   rabbitmq:
     container_name: rabbit

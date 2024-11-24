@@ -43,64 +43,84 @@ func (w *WorkerStatus) UpdateWorkerStatus(alive bool, conn net.Conn) {
 
 func (w *WorkerStatus) Revive() {
 	// dockr-in-docker revive, kill before
+	i := 0
+	for {
+		if i == 0 {
+			log.Debugf("Reviving worker: %s", w.Name)
+			i++
+		}
+	}
+	log.Debugf("Worker revived: %s", w.Name)
 }
 
 func (w *WorkerStatus) EstablishConnection(port string) {
-	log.Debugf("Connecting manager to worker", w.Name)
+	log.Debugf("Connecting manager to worker: %s", w.Name)
 	const maxRetries = 3
 
 	for i := 0; i < maxRetries; i++ {
 		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.Name, port))
 		if err == nil {
-			log.Debugf("Manager connected to worker: ", w.Name)
+			log.Debugf("Manager connected to worker: %s", w.Name)
 			w.UpdateWorkerStatus(true, conn)
 			return
 		}
 		if i == maxRetries-1 {
 			// Asumed dead
 			log.Criticalf("Failed to connect to worker %s", w.Name)
-			w.Receive()
+			w.Revive()
 			i = 0
 		}
-
-		time.Sleep(5 * time.Second)
+		log.Debugf("Manager failed to connect to worker, sleeping: %s", w.Name)
+		time.Sleep(20 * time.Second)
 	}
 }
 
 func (w *WorkerStatus) Handle() error {
 	defer w.Connection.Close()
 
+	log.Debugf("Watching worker: %s", w.Name)
 	w.Watch()
+	log.Debugf("Stop Watching worker: %s", w.Name)
 
 	return nil
 }
 
 func (w *WorkerStatus) Watch() {
 	for {
+		log.Debugf("Sending HCK to worker %s", w.Name)
 		if w.Send("HCK") != nil {
-			w.ReviveWorker()
+			log.Debugf("Error sending HCK to worker %s", w.Name)
+			w.SetDeadWorkerNRevive()
 			continue
 		}
 
+		log.Debugf("Receiving message from worker %s", w.Name)
 		message, err := w.Receive()
 
 		if err != nil {
-			w.ReviveWorker()
+			log.Debugf("Error receiving message from worker %s", w.Name)
+			w.SetDeadWorkerNRevive()
 			continue
 		} else {
 			messageAlive := common.ManagementMessage{Content: message}
 
 			if !messageAlive.IsAlive() {
-				w.ReviveWorker()
+				log.Debugf("Expecting alive message from worker %s, got %s", w.Name, message)
+				w.SetDeadWorkerNRevive()
 				continue
 			}
+
+			log.Debugf("Worker %s is alive", w.Name)
 		}
+
+		log.Debugf("Sleeping for 10 seconds before next check")
 
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func (w *WorkerStatus) ReviveWorker() {
+func (w *WorkerStatus) SetDeadWorkerNRevive() {
+	log.Debugf("Worker %s is dead, update status and revive", w.Name)
 	w.UpdateWorkerStatus(false, nil)
 	w.Revive()
 }

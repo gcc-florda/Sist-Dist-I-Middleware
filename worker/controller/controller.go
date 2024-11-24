@@ -102,9 +102,8 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 
 	c.Listener, err = net.Listen("tcp", fmt.Sprintf(":%s", v.GetString("worker.port")))
 	common.FailOnError(err, "Failed to connect to listener")
-	defer c.Listener.Close()
 
-	log.Infof("Worker listening on %s", c.Listener.Addr().String())
+	log.Infof("Worker listening on port %s", fmt.Sprintf(":%s", v.GetString("worker.port")))
 
 	// Artificially add one to keep it spinning as long as we don't get a shutdown
 	c.runtimeWG.Add(1)

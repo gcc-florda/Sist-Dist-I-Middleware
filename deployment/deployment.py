@@ -126,7 +126,6 @@ for i in range(1, MANAGERS_NR + 1):
     cpy["manager"]["environment"][0] = f"MANAGER_ID={i}"
     compose["services"][f"manager_{i}"] = cpy["manager"]
 
-
 for worker_def in traverse(controllers, architecture):
     compose["services"] = {
         **compose["services"],
