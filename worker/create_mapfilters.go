@@ -23,10 +23,21 @@ func CreateMFGQ1(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryOne.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterGames{
-				Filter: nil,
-				Mapper: business.Q1Map,
-			}, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
+
+			mf, err := business.NewMapFilterGames(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q1G",
+				cfg.ReadFromPartition,
+				business.Q1Map,
+				nil,
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
 		},
 	)
 }
@@ -44,10 +55,20 @@ func CreateMFGQ2(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryTwo.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterGames{
-				Filter: business.Q2Filter,
-				Mapper: business.Q2Map,
-			}, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
+			mf, err := business.NewMapFilterGames(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q2G",
+				cfg.ReadFromPartition,
+				business.Q2Map,
+				business.Q2Filter,
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
 		},
 	)
 }
@@ -65,10 +86,20 @@ func CreateMFGQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryThree.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterGames{
-				Filter: business.Q3FilterGames,
-				Mapper: business.Q3MapGames,
-			}, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
+			mf, err := business.NewMapFilterGames(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q3G",
+				cfg.ReadFromPartition,
+				business.Q3MapGames,
+				business.Q3FilterGames,
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
 		},
 	)
 }
@@ -86,10 +117,20 @@ func CreateMFGQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryFour.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterGames{
-				Filter: business.Q4FilterGames,
-				Mapper: business.Q4MapGames,
-			}, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
+			mf, err := business.NewMapFilterGames(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q4G",
+				cfg.ReadFromPartition,
+				business.Q4MapGames,
+				business.Q4FilterGames,
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
 		},
 	)
 }
@@ -107,10 +148,20 @@ func CreateMFGQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryFive.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterGames{
-				Filter: business.Q5FilterGames,
-				Mapper: business.Q5MapGames,
-			}, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
+			mf, err := business.NewMapFilterGames(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q5G",
+				cfg.ReadFromPartition,
+				business.Q5MapGames,
+				business.Q5FilterGames,
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_GAMES", 1), nil
 		},
 	)
 }
@@ -128,10 +179,20 @@ func CreateMFRQ3(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryThree.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterReviews{
-				Filter: business.Q3FilterReviews,
-				Mapper: business.Q3MapReviews,
-			}, controller.NewEOFChecker("MAP_FILTER_REVIEWS", 1), nil
+			mf, err := business.NewMapFilterReviews(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q3R",
+				cfg.ReadFromPartition,
+				business.Q3MapReviews,
+				business.Q3FilterReviews,
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_REVIEWS", 1), nil
 		},
 	)
 }
@@ -159,10 +220,20 @@ func CreateMFRQ4(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryFour.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterReviews{
-				Filter: business.Q4FilterReviewsBuilder(f),
-				Mapper: business.Q4MapReviews,
-			}, controller.NewEOFChecker("MAP_FILTER_REVIEWS", 1), nil
+			mf, err := business.NewMapFilterReviews(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q4R",
+				cfg.ReadFromPartition,
+				business.Q4MapReviews,
+				business.Q4FilterReviewsBuilder(f),
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_REVIEWS", 1), nil
 		},
 	)
 }
@@ -180,10 +251,20 @@ func CreateMFRQ5(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc
 			PartitionAmount: uint(arcCfg.QueryFive.StageTwo.PartitionAmount),
 		},
 		func(jobId common.JobID) (controller.Handler, controller.EOFValidator, error) {
-			return &business.MapFilterReviews{
-				Filter: business.Q5FilterReviews,
-				Mapper: business.Q5MapReviews,
-			}, controller.NewEOFChecker("MAP_FILTER_REVIEWS", 1), nil
+			mf, err := business.NewMapFilterReviews(
+				common.Config.GetString("savepath"),
+				jobId.String(),
+				"Q5R",
+				cfg.ReadFromPartition,
+				business.Q5MapReviews,
+				business.Q5FilterReviews,
+			)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return mf, controller.NewEOFChecker("MAP_FILTER_REVIEWS", 1), nil
 		},
 	)
 }

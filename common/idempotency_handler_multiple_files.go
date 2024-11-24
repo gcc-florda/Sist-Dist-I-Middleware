@@ -30,6 +30,7 @@ func ensureDir(dirname string) error {
 	// Directory exists and is valid, or was created successfully
 	return nil
 }
+
 func newFileManager(dirname string) (*fileManager, error) {
 	err := ensureDir(dirname)
 	if err != nil {
@@ -71,6 +72,14 @@ func (fm *fileManager) Open(filename string) (*TemporaryStorage, error) {
 	return NewTemporaryStorage(filepath.Join(fm.dirname, filename))
 }
 
+func (fm *fileManager) Close() {
+	// Nothing to close
+}
+
+func (fm *fileManager) Delete() error {
+	return os.Remove(fm.dirname)
+}
+
 type IdempotencyHandlerMultipleFiles[T Serializable] struct {
 	idemStore   *IdempotencyStore
 	filemanager *fileManager
@@ -105,6 +114,7 @@ func (h *IdempotencyHandlerMultipleFiles[T]) LoadState(
 			return err
 		}
 		h.idemStore.Merge(store)
+		file.Close()
 	}
 
 	return nil
@@ -112,6 +122,7 @@ func (h *IdempotencyHandlerMultipleFiles[T]) LoadState(
 
 func (h *IdempotencyHandlerMultipleFiles[T]) SaveState(caused_by *IdempotencyID, state T, where string) error {
 	storage, err := h.filemanager.Open(where)
+	defer storage.Close()
 	if err != nil {
 		return err
 	}
@@ -123,6 +134,32 @@ func (h *IdempotencyHandlerMultipleFiles[T]) SaveState(caused_by *IdempotencyID,
 	return nil
 }
 
+func (h *IdempotencyHandlerMultipleFiles[T]) ReadSerialState(
+	filename string,
+	des func(*Deserializer) (T, error),
+	agg func(T, T) T,
+	initial T,
+) (T, error) {
+	f, err := h.filemanager.Open(filename)
+	defer f.Close()
+	if err != nil {
+		return initial, err
+	}
+	_, state, err := LoadSavedState(f, des, agg, initial)
+	if err != nil {
+		return initial, err
+	}
+	return state, nil
+}
+
 func (h *IdempotencyHandlerMultipleFiles[T]) AlreadyProcessed(idemId *IdempotencyID) bool {
 	return h.idemStore.AlreadyProcessed(idemId)
+}
+
+func (h *IdempotencyHandlerMultipleFiles[T]) Close() {
+	h.filemanager.Close()
+}
+
+func (h *IdempotencyHandlerMultipleFiles[T]) Delete() error {
+	return h.filemanager.Delete()
 }

@@ -114,6 +114,13 @@ func SOCounterDeserialize(d *common.Deserializer) (*SOCounter, error) {
 	}, nil
 }
 
+func SOCounterAggregate(old *SOCounter, new *SOCounter) *SOCounter {
+	old.Windows += new.Windows
+	old.Linux += new.Linux
+	old.Mac += new.Mac
+	return old
+}
+
 type PlayedTime struct {
 	AveragePlaytimeForever float64
 	Name                   string

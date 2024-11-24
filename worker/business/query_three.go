@@ -3,6 +3,7 @@ package business
 import (
 	"fmt"
 	"middleware/common"
+	"middleware/worker/controller"
 	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
@@ -48,23 +49,26 @@ func (s *Q3State) Serialize() []byte {
 }
 
 type Q3 struct {
-	state   *Q3State
-	storage *common.TemporaryStorage
+	state     *Q3State
+	storage   *common.IdempotencyHandlerSingleFile[*common.ArraySerialize[*schema.NamedReviewCounter]]
+	basefiles string
 }
 
 func NewQ3(base string, id string, partition int, top int) (*Q3, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_three_%d", partition), id, "results"))
+	basefiles := filepath.Join(".", base, fmt.Sprintf("query_three_%d", partition), id)
+
+	s, err := common.NewIdempotencyHandlerSingleFile[*common.ArraySerialize[*schema.NamedReviewCounter]](
+		filepath.Join(basefiles, "results"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	diskState, err := s.ReadAll()
+	state, err := s.LoadOverwriteState(common.ReadArray(schema.NamedReviewCounterDeserialize))
 
 	if err != nil {
 		return nil, err
 	}
-
-	state, err := q3StateFromBytes(diskState)
 
 	if err != nil {
 		return nil, err
@@ -72,24 +76,14 @@ func NewQ3(base string, id string, partition int, top int) (*Q3, error) {
 
 	return &Q3{
 		state: &Q3State{
-			Top: state,
+			Top: state.Arr,
 			N:   top,
 		},
 		storage: s,
 	}, nil
 }
 
-func q3StateFromBytes(data []byte) ([]*schema.NamedReviewCounter, error) {
-	if len(data) == 0 {
-		return make([]*schema.NamedReviewCounter, 0), nil
-	}
-
-	d := common.NewDeserializer(data)
-
-	return common.ReadArray(&d, schema.NamedReviewCounterDeserialize)
-}
-
-func (q *Q3) Insert(rc *schema.NamedReviewCounter) error {
+func (q *Q3) Insert(rc *schema.NamedReviewCounter, idempotencyID *common.IdempotencyID) error {
 	q.state.Top = append(q.state.Top, rc)
 
 	sort.Slice(q.state.Top, func(i, j int) bool {
@@ -100,8 +94,9 @@ func (q *Q3) Insert(rc *schema.NamedReviewCounter) error {
 		q.state.Top = q.state.Top[:q.state.N]
 	}
 
-	q.storage.SaveState(q.state)
-	_, err := q.storage.SaveState(q.state)
+	err := q.storage.SaveState(idempotencyID, &common.ArraySerialize[*schema.NamedReviewCounter]{
+		Arr: q.state.Top,
+	})
 	if err != nil {
 		return err
 	}
@@ -109,29 +104,50 @@ func (q *Q3) Insert(rc *schema.NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q3) NextStage() (<-chan schema.Partitionable, <-chan error) {
-	ch := make(chan schema.Partitionable, q.state.N)
+func (q *Q3) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
+	ch := make(chan *controller.NextStageMessage, q.state.N)
 	ce := make(chan error, 1)
 
 	go func() {
 		defer close(ch)
 		defer close(ce)
 
+		fs, err := NewFileSequence(filepath.Join(q.basefiles, "sent_lines"))
+		if err != nil {
+			ce <- err
+			return
+		}
+		var line uint32 = 1
 		for _, pt := range q.state.Top {
-			ch <- pt
+			if line < fs.LastSent() {
+				continue
+			}
+			ch <- &controller.NextStageMessage{
+				Message:      pt,
+				Sequence:     line,
+				SentCallback: fs.Sent,
+			}
+			line++
 		}
 	}()
 
 	return ch, ce
 }
 
-func (q *Q3) Handle(protocolData []byte) (schema.Partitionable, error) {
+func (q *Q3) Handle(protocolData []byte, idempotencyID *common.IdempotencyID) (*controller.NextStageMessage, error) {
+	if q.storage.AlreadyProcessed(idempotencyID) {
+		log.Debugf("Action: Saving Game Top %d | Result: Already processed | IdempotencyID: %s", q.state.N, idempotencyID)
+		return nil, nil
+	}
+
 	p, err := schema.UnmarshalMessage(protocolData)
+
 	if err != nil {
 		return nil, err
 	}
+
 	if reflect.TypeOf(p) == reflect.TypeOf(&schema.NamedReviewCounter{}) {
-		return nil, q.Insert(p.(*schema.NamedReviewCounter))
+		return nil, q.Insert(p.(*schema.NamedReviewCounter), idempotencyID)
 	}
 	return nil, &schema.UnknownTypeError{}
 }

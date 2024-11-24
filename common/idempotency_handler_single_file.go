@@ -55,3 +55,31 @@ func (h *IdempotencyHandlerSingleFile[T]) SaveState(caused_by *IdempotencyID, st
 	h.idemStore.Save(caused_by)
 	return nil
 }
+
+func (h *IdempotencyHandlerSingleFile[T]) ReadState(des func(*Deserializer) (T, error)) (<-chan T, error) {
+	h.storage.Reset()
+	rs, err := ReadState(h.storage, des)
+	if rs != nil {
+		return nil, err
+	}
+	ch := make(chan T)
+	go func() {
+		for line := range rs {
+			ch <- (line.data)
+		}
+	}()
+
+	return ch, nil
+}
+
+func (h *IdempotencyHandlerSingleFile[T]) AlreadyProcessed(idemId *IdempotencyID) bool {
+	return h.idemStore.AlreadyProcessed(idemId)
+}
+
+func (h *IdempotencyHandlerSingleFile[T]) Close() {
+	h.storage.Close()
+}
+
+func (h *IdempotencyHandlerSingleFile[T]) Delete() error {
+	return h.storage.Delete()
+}

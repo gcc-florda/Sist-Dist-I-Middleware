@@ -4,7 +4,6 @@ import (
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
-	"middleware/worker/schema"
 	"os"
 	"os/signal"
 	"reflect"
@@ -27,21 +26,17 @@ type HandlerFactory func(job common.JobID) (Handler, EOFValidator, error)
 type EOFValidator interface {
 	Finish(receivedEOFs map[enums.TokenName]uint) (*EOFMessage, bool)
 }
-type Handler interface {
-	Handle(protocolData []byte) (schema.Partitionable, error)
-	NextStage() (<-chan schema.Partitionable, <-chan error)
-	Shutdown(delete bool)
-}
 
 type Protocol interface {
 	Unmarshal(rawData []byte) (DataMessage, error)
-	Marshal(common.JobID, common.Serializable) (common.Serializable, error)
+	Marshal(common.JobID, *common.IdempotencyID, common.Serializable) (common.Serializable, error)
 	Route(partitionKey string) (routingKey string)
 	Broadcast() (routes []string)
 }
 
 type DataMessage interface {
 	JobID() common.JobID
+	IdemID() *common.IdempotencyID
 	IsEOF() bool
 	Data() []byte
 }
@@ -52,10 +47,12 @@ type routing struct {
 }
 
 type messageToSend struct {
-	Routing routing
-	JobID   common.JobID
-	Body    common.Serializable
-	Ack     *amqp.Delivery
+	Routing  routing
+	Sequence uint32
+	Callback func()
+	JobID    common.JobID
+	Body     common.Serializable
+	Ack      *amqp.Delivery
 }
 
 type messageFromQueue struct {
@@ -151,6 +148,13 @@ func (q *Controller) broadcast(m common.Serializable) {
 	}
 }
 
+func (q *Controller) buildIdemId(sequence uint32) *common.IdempotencyID {
+	return &common.IdempotencyID{
+		Origin:   q.name,
+		Sequence: sequence,
+	}
+}
+
 func (q *Controller) Start() {
 	var end sync.WaitGroup
 
@@ -179,23 +183,30 @@ func (q *Controller) Start() {
 		defer end.Done()
 		// Listen for messages to send until all handlers AND a shutdown happened.
 		for mts := range q.handlerChan {
-			m, err := q.protocol.Marshal(mts.JobID, mts.Body)
+			m, err := q.protocol.Marshal(mts.JobID, q.buildIdemId(mts.Sequence), mts.Body)
 			if err != nil {
 				log.Error(err)
 			}
+
 			if mts.Routing.Type == Routing_Broadcast {
 				q.broadcast(m)
 				if mts.Ack != nil {
 					mts.Ack.Ack(false)
 				}
 			}
+
 			if mts.Routing.Type == Routing_Unicast {
 				q.publish(q.protocol.Route(mts.Routing.Key), m)
 				if mts.Ack != nil {
 					mts.Ack.Ack(false)
 				}
 			}
+
+			if mts.Callback != nil {
+				mts.Callback()
+			}
 		}
+
 		log.Debugf("Sent all pending messages")
 	}()
 

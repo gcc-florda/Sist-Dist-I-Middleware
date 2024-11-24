@@ -3,10 +3,18 @@ package business
 import (
 	"fmt"
 	"middleware/common"
+	"middleware/worker/controller"
 	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
 )
+
+func boolToCounter(b bool) uint32 {
+	if b {
+		return 1
+	}
+	return 0
+}
 
 func Q1Map(r *schema.Game) schema.Partitionable {
 	return &schema.SOCounter{
@@ -27,24 +35,23 @@ func q1StateFromBytes(data []byte) (*schema.SOCounter, error) {
 }
 
 type Q1 struct {
-	state   *schema.SOCounter
-	storage *common.TemporaryStorage
+	state     *schema.SOCounter
+	storage   *common.IdempotencyHandlerSingleFile[*schema.SOCounter]
+	basefiles string
 }
 
 func NewQ1(base string, id string, partition int, stage string) (*Q1, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_one_%d", partition), stage, id, "results"))
+	basefiles := filepath.Join(".", base, fmt.Sprintf("query_one_%d", partition), stage, id)
+
+	s, err := common.NewIdempotencyHandlerSingleFile[*schema.SOCounter](
+		filepath.Join(basefiles, "results"),
+	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	diskState, err := s.ReadAll()
-
-	if err != nil {
-		return nil, err
-	}
-
-	state, err := q1StateFromBytes(diskState)
+	state, err := s.LoadSequentialState(schema.SOCounterDeserialize, schema.SOCounterAggregate, &schema.SOCounter{})
 
 	if err != nil {
 		return nil, err
@@ -56,41 +63,37 @@ func NewQ1(base string, id string, partition int, stage string) (*Q1, error) {
 	}, nil
 }
 
-func (q *Q1) Count(r *schema.SOCounter) error {
+func (q *Q1) Count(r *schema.SOCounter, idempotencyID *common.IdempotencyID) error {
 	q.state.Windows += r.Windows
 	q.state.Linux += r.Linux
 	q.state.Mac += r.Mac
 
-	_, err := q.storage.SaveState(q.state)
+	err := q.storage.SaveState(idempotencyID, q.state)
 	if err != nil {
-		log.Debugf("Error saving state")
 		return err
 	}
 	return nil
 }
 
-func boolToCounter(b bool) uint32 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func (q *Q1) NextStage() (<-chan schema.Partitionable, <-chan error) {
-	ch := make(chan schema.Partitionable, 1) //Change this later
+func (q *Q1) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
+	ch := make(chan *controller.NextStageMessage, 1) //Change this later
 	ce := make(chan error, 1)
 
 	go func() {
 		defer close(ch)
 		defer close(ce)
 
-		ch <- q.state
+		ch <- &controller.NextStageMessage{
+			Message:      q.state,
+			Sequence:     1,
+			SentCallback: nil,
+		}
 	}()
 
 	return ch, ce
 }
 
-func (q *Q1) Handle(protocolData []byte) (schema.Partitionable, error) {
+func (q *Q1) Handle(protocolData []byte, idempotencyID *common.IdempotencyID) (*controller.NextStageMessage, error) {
 	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		log.Debugf("Error marshalling Q1")
@@ -98,7 +101,7 @@ func (q *Q1) Handle(protocolData []byte) (schema.Partitionable, error) {
 		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&schema.SOCounter{}) {
-		return nil, q.Count(p.(*schema.SOCounter))
+		return nil, q.Count(p.(*schema.SOCounter), idempotencyID)
 	}
 	return nil, &schema.UnknownTypeError{}
 }

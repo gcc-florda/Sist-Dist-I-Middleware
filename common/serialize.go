@@ -166,18 +166,35 @@ func (d *Deserializer) ReadUUID() (uuid.UUID, error) {
 	return id, nil
 }
 
-func ReadArray[T any](d *Deserializer, f func(*Deserializer) (T, error)) ([]T, error) {
-	l, err := d.ReadUint32()
-	if err != nil {
-		return nil, err
-	}
-	r := make([]T, l)
-	for i := uint32(0); i < l; i++ {
-		o, err := f(d)
+func ReadArray[T Serializable](f func(*Deserializer) (T, error)) func(d *Deserializer) (*ArraySerialize[T], error) {
+	return func(d *Deserializer) (*ArraySerialize[T], error) {
+		l, err := d.ReadUint32()
 		if err != nil {
 			return nil, err
 		}
-		r[i] = o
+		r := &ArraySerialize[T]{
+			Arr: make([]T, l),
+		}
+		for i := uint32(0); i < l; i++ {
+			o, err := f(d)
+			if err != nil {
+				return nil, err
+			}
+			r.Arr[i] = o
+		}
+		return r, nil
 	}
-	return r, nil
+}
+
+type ArraySerialize[T Serializable] struct {
+	Arr []T
+}
+
+func (a *ArraySerialize[T]) Serialize() []byte {
+	s := NewSerializer()
+	ser := make([]Serializable, 0, len(a.Arr))
+	for i, v := range a.Arr {
+		ser[i] = v
+	}
+	return s.WriteArray(ser).ToBytes()
 }

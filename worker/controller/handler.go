@@ -8,6 +8,18 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+type NextStageMessage struct {
+	Message      schema.Partitionable
+	Sequence     uint32
+	SentCallback func()
+}
+
+type Handler interface {
+	Handle(protocolData []byte, idempotencyID *common.IdempotencyID) (*NextStageMessage, error)
+	NextStage() (<-chan *NextStageMessage, <-chan error)
+	Shutdown(delete bool)
+}
+
 type HandlerRuntime struct {
 	JobId           common.JobID
 	name            string
@@ -19,6 +31,7 @@ type HandlerRuntime struct {
 	eofs            *EOFState
 	removeOnCleanup bool
 	finish          chan bool
+	sequenceCounter uint32
 }
 
 func NewHandlerRuntime(controllerName string, j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan *HandlerRuntime) (*HandlerRuntime, error) {
@@ -54,10 +67,15 @@ func (h *HandlerRuntime) Start() {
 	}()
 
 	msg, finished := h.validateEOF.Finish(h.eofs.Received)
+
 	if finished {
 		ok := h.handleNextStage()
 		if ok {
-			h.toController <- h.broadcast(msg)
+			h.sequenceCounter += 1
+			h.toController <- h.broadcast(&NextStageMessage{
+				Message:  msg,
+				Sequence: h.sequenceCounter,
+			})
 			h.removeOnCleanup = true
 			return
 		}
@@ -65,6 +83,7 @@ func (h *HandlerRuntime) Start() {
 
 	for msg := range h.forJob {
 		if !msg.Message.IsEOF() {
+			// TODO: Handle where, how the IdempotencyID is sent
 			h.handleDataMessage(msg)
 		} else {
 			eof, err := EOFMessageFromBytes(msg.Message.Data())
@@ -79,7 +98,11 @@ func (h *HandlerRuntime) Start() {
 		if finished {
 			ok := h.handleNextStage()
 			if ok {
-				h.toController <- h.broadcast(msg)
+				h.sequenceCounter += 1
+				h.toController <- h.broadcast(&NextStageMessage{
+					Message:  msg,
+					Sequence: h.sequenceCounter,
+				})
 				h.removeOnCleanup = true
 				return
 			}
@@ -97,7 +120,7 @@ func (h *HandlerRuntime) Finish() {
 }
 
 func (h *HandlerRuntime) handleDataMessage(msg *messageFromQueue) {
-	out, err := h.handler.Handle(msg.Message.Data())
+	out, err := h.handler.Handle(msg.Message.Data(), msg.Message.IdemID())
 	if err != nil {
 		log.Errorf("Action: Handling Message %s - %s| Result: Error | Error: %s | Data: %s", h.name, h.JobId, err, msg.Message.Data())
 		msg.Delivery.Nack(false, true)
@@ -131,25 +154,30 @@ sendLoop:
 	return true
 }
 
-func (h *HandlerRuntime) unicast(m schema.Partitionable, d *amqp.Delivery) *messageToSend {
+func (h *HandlerRuntime) unicast(m *NextStageMessage, d *amqp.Delivery) *messageToSend {
+	h.sequenceCounter = m.Sequence
 	return &messageToSend{
-		JobID: h.JobId,
+		JobID:    h.JobId,
+		Sequence: m.Sequence,
+		Callback: m.SentCallback,
+		Body:     m.Message,
+		Ack:      d,
 		Routing: routing{
 			Type: Routing_Unicast,
-			Key:  m.PartitionKey(),
+			Key:  m.Message.PartitionKey(),
 		},
-		Body: m,
-		Ack:  d,
 	}
 }
 
-func (h *HandlerRuntime) broadcast(m schema.Partitionable) *messageToSend {
+func (h *HandlerRuntime) broadcast(m *NextStageMessage) *messageToSend {
 	return &messageToSend{
-		JobID: h.JobId,
+		JobID:    h.JobId,
+		Sequence: m.Sequence,
+		Callback: m.SentCallback,
 		Routing: routing{
 			Type: Routing_Broadcast,
 		},
-		Body: m,
+		Body: m.Message,
 		Ack:  nil,
 	}
 }
