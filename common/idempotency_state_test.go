@@ -27,15 +27,17 @@ func StateTestDeserialize(d *common.Deserializer) (*StateTest, error) {
 	}, nil
 }
 
-var test_files = filepath.Join(".", "test_files")
-var test_files_save = filepath.Join(test_files, "save_state")
+var root_test_files = filepath.Join(".", "test_files")
 
-func deleteFiles() {
-	os.Remove(test_files)
+var state_test_files = filepath.Join(root_test_files, "idempotency_state")
+var state_test_file_save = filepath.Join(state_test_files, "save_state")
+
+func deleteStateTestFiles() {
+	os.Remove(state_test_files)
 }
 
 func write_to_test_file(name string, data []byte) {
-	file, err := os.OpenFile(filepath.Join(test_files, name), os.O_WRONLY|os.O_CREATE, 0644)
+	file, err := os.OpenFile(filepath.Join(state_test_files, name), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		log.Fatalf("Failed to open or create file: %v", err)
 	}
@@ -45,12 +47,11 @@ func write_to_test_file(name string, data []byte) {
 }
 
 func corrupt_test_file(name string, how_much uint32) {
-	fp := filepath.Join(test_files, name)
-	fi, err := os.Stat(fp)
+	fi, err := os.Stat(name)
 	if err != nil {
 		log.Fatalf("Failed to open or create file: %v", err)
 	}
-	file, err := os.OpenFile(fp, os.O_WRONLY|os.O_CREATE, 0644)
+	file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		log.Fatalf("Failed to open or create file: %v", err)
 	}
@@ -60,9 +61,10 @@ func corrupt_test_file(name string, how_much uint32) {
 }
 
 func init() {
-	deleteFiles()
-	os.Mkdir(test_files, 0755)
-	os.Mkdir(test_files_save, 0755)
+	deleteStateTestFiles()
+	os.Mkdir(root_test_files, 0755)
+	os.Mkdir(state_test_files, 0755)
+	os.Mkdir(state_test_file_save, 0755)
 	s := common.NewSerializer()
 
 	b := s.
@@ -78,14 +80,14 @@ func init() {
 	write_to_test_file("overwrite_state_ok", b)
 
 	write_to_test_file("sequential_state_corrupt", b)
-	corrupt_test_file("sequential_state_corrupt", 2)
+	corrupt_test_file(filepath.Join(state_test_files, "sequential_state_corrupt"), 2)
 
 	write_to_test_file("overwrite_state_corrupt", b)
-	corrupt_test_file("overwrite_state_corrupt", 2)
+	corrupt_test_file(filepath.Join(state_test_files, "overwrite_state_corrupt"), 2)
 }
 
 func TestLoadSavedStateSequentialOk(t *testing.T) {
-	stg, err := common.NewTemporaryStorage(filepath.Join(test_files, "sequential_state_ok"))
+	stg, err := common.NewTemporaryStorage(filepath.Join(state_test_files, "sequential_state_ok"))
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
@@ -118,7 +120,7 @@ func TestLoadSavedStateSequentialOk(t *testing.T) {
 }
 
 func TestLoadSavedStateOverwriteOk(t *testing.T) {
-	stg, err := common.NewTemporaryStorage(filepath.Join(test_files, "overwrite_state_ok"))
+	stg, err := common.NewTemporaryStorage(filepath.Join(state_test_files, "overwrite_state_ok"))
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
@@ -148,7 +150,7 @@ func TestLoadSavedStateOverwriteOk(t *testing.T) {
 }
 
 func TestLoadSavedStateSequentialCorrupt(t *testing.T) {
-	stg, err := common.NewTemporaryStorage(filepath.Join(test_files, "sequential_state_corrupt"))
+	stg, err := common.NewTemporaryStorage(filepath.Join(state_test_files, "sequential_state_corrupt"))
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
@@ -175,7 +177,7 @@ func TestLoadSavedStateSequentialCorrupt(t *testing.T) {
 		t.Fatalf("The state read is not the expected %d - %d", state.count, 10)
 	}
 
-	fi, err := os.Stat(filepath.Join(test_files, "sequential_state_corrupt"))
+	fi, err := os.Stat(filepath.Join(state_test_files, "sequential_state_corrupt"))
 	if err != nil {
 		log.Fatalf("Failed to open or create file: %v", err)
 	}
@@ -189,7 +191,7 @@ func TestLoadSavedStateSequentialCorrupt(t *testing.T) {
 }
 
 func TestLoadSavedStateOverwriteCorrupt(t *testing.T) {
-	stg, err := common.NewTemporaryStorage(filepath.Join(test_files, "overwrite_state_corrupt"))
+	stg, err := common.NewTemporaryStorage(filepath.Join(state_test_files, "overwrite_state_corrupt"))
 	if err != nil {
 		t.Fatalf("Can't create temporary storage")
 	}
@@ -217,7 +219,7 @@ func TestLoadSavedStateOverwriteCorrupt(t *testing.T) {
 		t.Fatalf("The state read is not the expected %d - %d", state.count, 4)
 	}
 
-	fi, err := os.Stat(filepath.Join(test_files, "overwrite_state_corrupt"))
+	fi, err := os.Stat(filepath.Join(state_test_files, "overwrite_state_corrupt"))
 	if err != nil {
 		log.Fatalf("Failed to open or create file: %v", err)
 	}

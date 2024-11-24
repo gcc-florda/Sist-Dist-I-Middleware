@@ -15,17 +15,17 @@ func NewIdempotencyStore() *IdempotencyStore {
 }
 
 func (s *IdempotencyStore) Save(id *IdempotencyID) {
-	og := id.origin
+	og := id.Origin
 	s.last_id_per_og[og] = id
 }
 
 func (s *IdempotencyStore) AlreadyProcessed(id *IdempotencyID) bool {
-	og := id.origin
+	og := id.Origin
 	last, ok := s.last_id_per_og[og]
 	if !ok {
 		return false
 	}
-	return last.sequence == id.sequence
+	return last.Sequence == id.Sequence
 }
 
 func (s *IdempotencyStore) LastForOrigin(og string) (*IdempotencyID, error) {
@@ -37,9 +37,9 @@ func (s *IdempotencyStore) LastForOrigin(og string) (*IdempotencyID, error) {
 }
 
 func (s *IdempotencyStore) saveLast(id *IdempotencyID) {
-	og := id.origin
+	og := id.Origin
 	this, ok := s.last_id_per_og[og]
-	if !ok || this.sequence < id.sequence {
+	if !ok || this.Sequence < id.Sequence {
 		s.Save(id)
 	}
 }

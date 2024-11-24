@@ -122,3 +122,7 @@ func (h *IdempotencyHandlerMultipleFiles[T]) SaveState(caused_by *IdempotencyID,
 	h.idemStore.Save(caused_by)
 	return nil
 }
+
+func (h *IdempotencyHandlerMultipleFiles[T]) AlreadyProcessed(idemId *IdempotencyID) bool {
+	return h.idemStore.AlreadyProcessed(idemId)
+}
