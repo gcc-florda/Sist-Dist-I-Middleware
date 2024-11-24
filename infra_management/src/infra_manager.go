@@ -44,7 +44,8 @@ func (m *InfraManager) Start(workerPort string) error {
 func (m *InfraManager) ListenForWorkers(workerPort string) {
 	for _, worker := range m.WorkersManager.Workers {
 		log.Debugf("Establishing connection with worker %s", worker.Name)
-		worker.EstablishConnection(workerPort)
+		worker.Listener = workerPort
+		worker.EstablishConnection()
 
 		log.Debugf("Handling worker %s", worker.Name)
 		go worker.Handle()

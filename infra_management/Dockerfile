@@ -13,7 +13,9 @@ COPY ./common/ ./common
 
 RUN go build -o infra_management.bin ./infra_management
 
-FROM busybox:latest
+FROM alpine:latest
+
+RUN apk add --no-cache docker
 
 WORKDIR /app
 

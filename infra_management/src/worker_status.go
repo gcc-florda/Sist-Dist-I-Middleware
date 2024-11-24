@@ -1,9 +1,11 @@
 package src
 
 import (
+	"bytes"
 	"fmt"
 	"middleware/common"
 	"net"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ type WorkerStatus struct {
 	Name       string
 	Alive      bool
 	Connection net.Conn
+	Listener   string
 }
 
 func NewWorkerStatus(name string) *WorkerStatus {
@@ -42,23 +45,40 @@ func (w *WorkerStatus) UpdateWorkerStatus(alive bool, conn net.Conn) {
 }
 
 func (w *WorkerStatus) Revive() {
-	// dockr-in-docker revive, kill before
-	i := 0
-	for {
-		if i == 0 {
-			log.Debugf("Reviving worker: %s", w.Name)
-			i++
-		}
+	log.Debugf("Reviving worker: %s", w.Name)
+	// Kill the worker container first
+	stopCmd := exec.Command("docker", "stop", w.Name)
+	var stopOut, stopErr bytes.Buffer
+	stopCmd.Stdout = &stopOut
+	stopCmd.Stderr = &stopErr
+
+	if err := stopCmd.Run(); err != nil {
+		log.Infof("DOCKER STOP | Error while stoping worker container: %v", err)
+	} else {
+		log.Infof("DOCKER STOP | Worker container stopped: %s", w.Name)
+	}
+
+	// Revive the worker container
+	startCmd := exec.Command("docker", "start", w.Name)
+	var startOut, startErr bytes.Buffer
+	startCmd.Stdout = &startOut
+	startCmd.Stderr = &startErr
+
+	if err := startCmd.Run(); err != nil {
+		log.Infof("DOCKER START | Error while starting worker container: %v", err)
+	} else {
+		log.Infof("DOCKER START | Worker container started: %s", w.Name)
 	}
 	log.Debugf("Worker revived: %s", w.Name)
+	w.EstablishConnection()
 }
 
-func (w *WorkerStatus) EstablishConnection(port string) {
+func (w *WorkerStatus) EstablishConnection() {
 	log.Debugf("Connecting manager to worker: %s", w.Name)
 	const maxRetries = 3
 
 	for i := 0; i < maxRetries; i++ {
-		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.Name, port))
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.Name, w.Listener))
 		if err == nil {
 			log.Debugf("Manager connected to worker: %s", w.Name)
 			w.UpdateWorkerStatus(true, conn)

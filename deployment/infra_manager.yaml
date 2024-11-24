@@ -13,3 +13,4 @@ manager:
   volumes:
     - ./infra_management/config.yaml:/app/config.yaml
     - ./architecture.yaml:/app/architecture.yaml
+    - /var/run/docker.sock:/var/run/docker.sock
