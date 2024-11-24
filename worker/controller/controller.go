@@ -81,7 +81,7 @@ type Controller struct {
 }
 
 func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
-	v, err := common.InitConfig("./config.yaml")
+	v, err := common.InitConfig("./worker/controller/config.yaml")
 	if err != nil {
 		log.Criticalf("%s", err)
 	}

@@ -65,8 +65,14 @@ func main() {
 
 	PrintConfig(v)
 
-	master := src.NewInfraManager(4)
-	if err := master.Start(v.GetString("worker.port")); err != nil {
-		log.Criticalf("Error starting master manager: %s", err)
+	manager, err := src.NewInfraManager()
+
+	if err != nil {
+		log.Criticalf("Error creating manager: %s", err)
+		return
+	}
+
+	if err := manager.Start(v.GetString("worker.port")); err != nil {
+		log.Criticalf("Error starting manager: %s", err)
 	}
 }

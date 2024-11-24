@@ -3,6 +3,8 @@ package src
 import (
 	"fmt"
 	"middleware/common"
+	"os"
+	"strconv"
 )
 
 type InfraManager struct {
@@ -10,11 +12,18 @@ type InfraManager struct {
 	WorkersManager *WorkerStatusManager
 }
 
-func NewInfraManager(id int) *InfraManager {
+func NewInfraManager() (*InfraManager, error) {
+	id, err := strconv.Atoi(os.Getenv("MANAGER_ID"))
+
+	if err != nil {
+		log.Criticalf("Error parsing manager id: %s", err)
+		return nil, err
+	}
+
 	return &InfraManager{
 		Id:             id,
 		WorkersManager: NewWorkerStatusManager(),
-	}
+	}, nil
 }
 
 func (m *InfraManager) Start(workerPort string) error {
