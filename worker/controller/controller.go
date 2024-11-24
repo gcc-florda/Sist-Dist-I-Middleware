@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
@@ -66,17 +67,17 @@ type messageFromQueue struct {
 }
 
 type Controller struct {
-	name          string
-	rcvFrom       []*rabbitmq.Queue
-	to            []*rabbitmq.Exchange
-	handlerChan   chan *messageToSend
-	protocol      Protocol
-	factory       HandlerFactory
-	handlers      map[common.JobID]*HandlerRuntime
-	housekeeping  chan *HandlerRuntime
-	runtimeWG     sync.WaitGroup
-	managerAddess string
-	Connection    net.Conn
+	name              string
+	rcvFrom           []*rabbitmq.Queue
+	to                []*rabbitmq.Exchange
+	handlerChan       chan *messageToSend
+	protocol          Protocol
+	factory           HandlerFactory
+	handlers          map[common.JobID]*HandlerRuntime
+	housekeeping      chan *HandlerRuntime
+	runtimeWG         sync.WaitGroup
+	ManagerConnection net.Conn
+	Listener          net.Listener
 }
 
 func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
@@ -89,16 +90,22 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 	h := make(chan *HandlerRuntime, 50)
 
 	c := &Controller{
-		name:          controllerName,
-		rcvFrom:       from,
-		to:            to,
-		protocol:      protocol,
-		handlerChan:   mts,
-		factory:       handlerF,
-		handlers:      make(map[common.JobID]*HandlerRuntime),
-		housekeeping:  h,
-		managerAddess: v.GetString("server.address"),
+		name:         controllerName,
+		rcvFrom:      from,
+		to:           to,
+		protocol:     protocol,
+		handlerChan:  mts,
+		factory:      handlerF,
+		handlers:     make(map[common.JobID]*HandlerRuntime),
+		housekeeping: h,
 	}
+
+	c.Listener, err = net.Listen("tcp", fmt.Sprintf(":%s", v.GetString("worker.port")))
+	common.FailOnError(err, "Failed to connect to listener")
+	defer c.Listener.Close()
+
+	log.Infof("Worker listening on %s", c.Listener.Addr().String())
+
 	// Artificially add one to keep it spinning as long as we don't get a shutdown
 	c.runtimeWG.Add(1)
 	go func() {
@@ -107,10 +114,14 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 		<-term
 		// Remove the artificial one
 		log.Debugf("Received shutdown signal in controller")
-		if c.Connection != nil {
-			log.Debugf("Shuting down connection with manager")
-			c.Connection.Close()
+		if c.Listener != nil {
+			c.Listener.Close()
 		}
+
+		if c.ManagerConnection != nil {
+			c.ManagerConnection.Close()
+		}
+
 		c.runtimeWG.Done()
 	}()
 	return c
@@ -164,64 +175,61 @@ func (q *Controller) broadcast(m common.Serializable) {
 	}
 }
 
-func (c *Controller) ReportToManager() {
+func (c *Controller) WaitForManager() {
+
 	for {
-		log.Debugf("Connecting controller %s to manager", c.name)
-		conn, err := net.Dial("tcp", c.managerAddess)
+		var err error
+		c.ManagerConnection, err = c.Listener.Accept()
 		if err != nil {
-			log.Errorf("Error connecting controller %s to manager", c.name)
-			time.Sleep(4 * time.Second)
-			continue
+			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
+			break
 		}
 
-		c.Connection = conn
-
-		log.Debugf("Sending controller name %s to manager", c.name)
-		if common.Send(c.name, c.Connection) != nil {
-			log.Errorf("Error sending controller name %s to manager", c.name)
-			c.Connection.Close()
-			time.Sleep(4 * time.Second)
-			continue
-		}
-
-		log.Debugf("Listening for manager messages for controller %s", c.name)
-		for {
-			message, err := common.Receive(c.Connection)
-
-			if err != nil {
-				log.Errorf("Error receiving manager messages for controller %s", c.name)
-				c.Connection.Close()
-				time.Sleep(4 * time.Second)
-				break
-			}
-
-			log.Debugf("Received message from manager: %s", message)
-
-			messageHealthCheck := common.ManagementMessage{Content: message}
-
-			if !messageHealthCheck.IsHealthCheck() {
-				log.Errorf("Expecting HealthCheck message from manager but received %s", messageHealthCheck)
-				continue
-			}
-
-			if common.Send("ALV", c.Connection) != nil {
-				log.Errorf("Error sending ALV to manager for controller %s", c.name)
-				c.Connection.Close()
-				time.Sleep(4 * time.Second)
-				break
-			}
-
-			log.Debugf("Sent ALV to manager for controller %s", c.name)
-		}
-		log.Debugf("Finish listening for manager messages for controller %s", c.name)
+		c.HandleManager()
 	}
+}
+
+func (c *Controller) HandleManager() {
+	defer c.ManagerConnection.Close()
+
+	log.Debugf("Listening for manager messages for controller %s", c.name)
+	for {
+		message, err := common.Receive(c.ManagerConnection)
+
+		if err != nil {
+			log.Errorf("Error receiving manager messages for controller %s", c.name)
+			c.ManagerConnection.Close()
+			time.Sleep(4 * time.Second)
+			break
+		}
+
+		log.Debugf("Received message from manager: %s", message)
+
+		messageHealthCheck := common.ManagementMessage{Content: message}
+
+		if !messageHealthCheck.IsHealthCheck() {
+			log.Errorf("Expecting HealthCheck message from manager but received %s", messageHealthCheck)
+			continue
+		}
+
+		if common.Send("ALV", c.ManagerConnection) != nil {
+			log.Errorf("Error sending ALV to manager for controller %s", c.name)
+			c.ManagerConnection.Close()
+			time.Sleep(4 * time.Second)
+			break
+		}
+
+		log.Debugf("Sent ALV to manager for controller %s", c.name)
+	}
+	log.Debugf("Finish listening for manager messages for controller %s", c.name)
+
 }
 
 func (q *Controller) Start() {
 	var end sync.WaitGroup
 
 	end.Add(1)
-	go q.ReportToManager()
+	go q.WaitForManager()
 
 	end.Add(1)
 	go func() {

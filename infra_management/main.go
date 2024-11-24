@@ -48,9 +48,7 @@ func InitLogger(logLevel string) error {
 
 func PrintConfig(v *viper.Viper) {
 	log.Infof("action: config | result: success | manager_ip: %s | manager_port: %d | log_level: %s",
-		v.GetString("manager.ip"),
-		v.GetInt("manager.port"),
-		v.GetString("manager.level"),
+		v.GetInt("worker.port"),
 	)
 }
 
@@ -66,8 +64,8 @@ func main() {
 
 	PrintConfig(v)
 
-	master := NewInfraManager(4, v.GetString("manager.ip"), v.GetInt("manager.port"))
-	if err := master.Start("./architecture.yaml"); err != nil {
+	master := NewInfraManager(4)
+	if err := master.Start(v.GetString("worker.port")); err != nil {
 		log.Criticalf("Error starting master manager: %s", err)
 	}
 }

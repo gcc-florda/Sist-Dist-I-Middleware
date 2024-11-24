@@ -3,120 +3,33 @@ package main
 import (
 	"fmt"
 	"middleware/common"
-	"net"
-	"sync"
-	"time"
 )
 
 type InfraManager struct {
 	Id             int
-	Address        string
-	Listener       net.Listener
 	WorkersManager *WorkerStatusManager
 }
 
-func NewInfraManager(id int, ip string, port int) *InfraManager {
+func NewInfraManager(id int) *InfraManager {
 	return &InfraManager{
 		Id:             id,
-		Address:        fmt.Sprintf("%s:%d", ip, port),
 		WorkersManager: NewWorkerStatusManager(),
 	}
 }
 
-func (m *InfraManager) Start(configFilePath string) error {
-	var err error
-	m.Listener, err = net.Listen("tcp", m.Address)
-	common.FailOnError(err, "Failed to start manager")
-	defer m.Listener.Close()
+func (m *InfraManager) Start(workerPort string) error {
 
-	log.Infof("Manager listening on %s", m.Address)
-
-	var wg sync.WaitGroup
-
-	wg.Add(2)
-
-	go m.ListenForWorkers()
-
-	go m.WatchDeadWorkers()
-
-	wg.Wait()
+	m.ListenForWorkers(workerPort)
 
 	return nil
 }
 
-func (m *InfraManager) ListenForWorkers() {
-	for {
-		conn, err := m.Listener.Accept()
-		if err != nil {
-			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
-			break
-		}
+func (m *InfraManager) ListenForWorkers(workerPort string) {
 
-		go m.HandleWorker(conn)
-	}
-}
+	for _, worker := range m.WorkersManager.Workers {
+		worker.EstablishConnection(workerPort)
 
-func (m *InfraManager) HandleWorker(conn net.Conn) error {
-	defer conn.Close()
-
-	message, err := common.Receive(conn)
-
-	if err != nil {
-		log.Errorf("Action: Receive Message from Worker | Result: Error | Error: %s", err)
-		return err // TODO: Review --> how should we handle the manager when a worker establish the connection but can't send it's first message (it's name)
-	}
-
-	workerName := common.ManagementMessage{Content: message}
-
-	if !workerName.IsName() {
-		return fmt.Errorf("expecting Worker Name")
-	}
-
-	workerStatus := m.WorkersManager.GetWorkerStatusByName(workerName.Content)
-
-	if workerStatus == nil {
-		return fmt.Errorf("worker not found")
-	}
-
-	workerStatus.UpdateWorkerStatus(true, conn)
-
-	m.Watch(workerStatus)
-
-	return nil
-}
-
-func (m *InfraManager) Watch(worker *WorkerStatus) {
-	for {
-		if worker.Send("HCK") != nil {
-			worker.UpdateWorkerStatus(false, nil)
-			break
-		}
-
-		message, err := worker.Receive()
-
-		if err != nil {
-			worker.UpdateWorkerStatus(false, nil)
-			break
-		} else {
-			messageAlive := common.ManagementMessage{Content: message}
-
-			if !messageAlive.IsAlive() {
-				worker.UpdateWorkerStatus(false, nil)
-				break
-			}
-		}
-
-		time.Sleep(10 * time.Second)
-	}
-}
-
-func (m *InfraManager) WatchDeadWorkers() {
-	for {
-		deadWorker := m.WorkersManager.GetDeadWorker()
-
-		if deadWorker != nil {
-			deadWorker.Revive()
-		}
+		go worker.Handle()
 	}
 }
 
