@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"fmt"
@@ -6,7 +6,11 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("log")
 
 type WorkerStatus struct {
 	Name       string

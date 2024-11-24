@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"middleware/infra_management/src"
 	"os"
 	"strings"
 
@@ -64,7 +65,7 @@ func main() {
 
 	PrintConfig(v)
 
-	master := NewInfraManager(4)
+	master := src.NewInfraManager(4)
 	if err := master.Start(v.GetString("worker.port")); err != nil {
 		log.Criticalf("Error starting master manager: %s", err)
 	}
