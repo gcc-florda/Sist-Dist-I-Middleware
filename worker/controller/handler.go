@@ -60,54 +60,60 @@ func (h *HandlerRuntime) Start() {
 	// We get here if and only if
 	//	- We finalize the job for this handler
 	//	- An external force closed the channel for receiving messages
-	defer h.cleanup()
 	defer func() {
 		log.Infof("Action: Handler Runtime Finalizing %s - %s", h.name, h.JobId)
 		h.finish <- true
+		close(h.finish)
 	}()
-
-	msg, finished := h.validateEOF.Finish(h.eofs.Received)
-
-	if finished {
-		ok := h.handleNextStage()
-		if ok {
-			h.sequenceCounter += 1
-			h.toController <- h.broadcast(&NextStageMessage{
-				Message:  msg,
-				Sequence: h.sequenceCounter,
-			})
-			h.removeOnCleanup = true
-			return
-		}
-	}
 
 	for msg := range h.forJob {
 		if !msg.Message.IsEOF() {
-			// TODO: Handle where, how the IdempotencyID is sent
 			h.handleDataMessage(msg)
-		} else {
-			eof, err := EOFMessageFromBytes(msg.Message.Data())
-			if err != nil {
-				msg.Delivery.Nack(false, true)
-			}
-			h.eofs.Update(eof.TokenName)
-			msg.Delivery.Ack(false)
+			continue
 		}
 
-		msg, finished := h.validateEOF.Finish(h.eofs.Received)
-		if finished {
+		eof, err := EOFMessageFromBytes(msg.Message.Data())
+		if err != nil {
+			msg.Delivery.Nack(false, true)
+		}
+		updated := h.eofs.Update(eof.TokenName, msg.Message.IdemID())
+
+		msgFwd, finished := h.validateEOF.Finish(h.eofs.Received)
+		if updated && finished {
 			ok := h.handleNextStage()
 			if ok {
 				h.sequenceCounter += 1
+				// Ack the EOF that generated the send forward to
 				h.toController <- h.broadcast(&NextStageMessage{
-					Message:  msg,
+					Message:  msgFwd,
 					Sequence: h.sequenceCounter,
-				})
-				h.removeOnCleanup = true
-				return
+					SentCallback: func() {
+						// This guarantees that the only one that can trigger the EOF forward
+						// sequence is the last one that has arrived, if there are others that are
+						// repeated, they will not generate the sequence, as they will never update
+						// and we will missing a token to start the sequence
+						h.eofs.SaveState(eof.TokenName, msg.Message.IdemID())
+						msg.Delivery.Ack(false)
+						h.removeOnCleanup = true
+						h.signalFinish()
+					},
+				}, nil)
 			}
+		} else if updated {
+			h.eofs.SaveState(eof.TokenName, msg.Message.IdemID())
+			msg.Delivery.Ack(false)
+		} else if !updated && finished {
+			h.signalFinish()
+			msg.Delivery.Ack(false)
+		} else {
+			msg.Delivery.Ack(false)
 		}
 	}
+}
+
+func (h *HandlerRuntime) signalFinish() {
+	// Tell the controller to close my sending channel
+	h.housekeeping <- h
 }
 
 func (h *HandlerRuntime) Finish() {
@@ -169,7 +175,7 @@ func (h *HandlerRuntime) unicast(m *NextStageMessage, d *amqp.Delivery) *message
 	}
 }
 
-func (h *HandlerRuntime) broadcast(m *NextStageMessage) *messageToSend {
+func (h *HandlerRuntime) broadcast(m *NextStageMessage, d *amqp.Delivery) *messageToSend {
 	return &messageToSend{
 		JobID:    h.JobId,
 		Sequence: m.Sequence,
@@ -178,10 +184,6 @@ func (h *HandlerRuntime) broadcast(m *NextStageMessage) *messageToSend {
 			Type: Routing_Broadcast,
 		},
 		Body: m.Message,
-		Ack:  nil,
+		Ack:  d,
 	}
-}
-
-func (h *HandlerRuntime) cleanup() {
-	h.housekeeping <- h
 }

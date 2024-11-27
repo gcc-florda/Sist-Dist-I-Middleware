@@ -130,8 +130,13 @@ func (q *Controller) removeHandler(h *HandlerRuntime) {
 	// Not a problem that this blocks, because the others handlers
 	// are working in a separate goroutine, so they can do work.
 	log.Infof("Action: Deleting Handler %s - %s", h.name, h.JobId)
-	h.Finish()
+	// TODO: maybe soft delete it? Then have a housekeeping task that makes it so it delete really old handlers
+	// If we are removing it from here it is because the handler consideres finished the task
+	// If so, then just close everything and ignore every message for it coming forward
+	// at most, they are duplicated EOFs
 	delete(q.handlers, h.JobId)
+	close(h.forJob)
+	h.Finish()
 	q.runtimeWG.Done()
 }
 
@@ -266,5 +271,6 @@ mainloop:
 func (q *Controller) SignalNoMoreMessages() {
 	for k := range q.handlers {
 		close(q.handlers[k].forJob)
+		q.handlers[k].Finish()
 	}
 }
