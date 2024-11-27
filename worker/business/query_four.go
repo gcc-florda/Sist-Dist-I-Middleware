@@ -76,6 +76,8 @@ func NewQ4(base string, id string, partition int, over int, bufSize int) (*Q4, e
 
 func (q *Q4) Insert(rc *schema.NamedReviewCounter, idempotencyID *common.IdempotencyID) error {
 	if rc.Count > uint32(q.state.Over) {
+		// TODO: We are not really storing these IDs, but do we really care?
+		// They are not modifying state, so they can come as much as they want.
 		err := q.storage.SaveState(idempotencyID, rc)
 		if err != nil {
 			return err

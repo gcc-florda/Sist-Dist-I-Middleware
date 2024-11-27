@@ -57,13 +57,13 @@ func (h *IdempotencyHandlerSingleFile[T]) SaveState(caused_by *IdempotencyID, st
 }
 
 func (h *IdempotencyHandlerSingleFile[T]) ReadState(des func(*Deserializer) (T, error)) (<-chan T, error) {
-	h.storage.Reset()
 	rs, err := ReadState(h.storage, des)
-	if rs != nil {
+	if err != nil {
 		return nil, err
 	}
-	ch := make(chan T)
+	ch := make(chan T, 10)
 	go func() {
+		defer close(ch)
 		for line := range rs {
 			ch <- (line.data)
 		}

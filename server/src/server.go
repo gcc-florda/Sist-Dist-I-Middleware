@@ -96,7 +96,8 @@ func (s *Server) HandleConnection(client *Client) {
 		s.RemoveClient(client)
 		return
 	}
-
+	gamec := 1
+	reviewc := 1
 	for {
 		message, err := client.Recv()
 
@@ -111,10 +112,12 @@ func (s *Server) HandleConnection(client *Client) {
 
 		switch messageDeserialized.Type {
 		case common.Type_GAMES:
-			s.Broadcast(client, messageDeserialized)
+			s.Broadcast(client, messageDeserialized, &common.IdempotencyID{Origin: "SV", Sequence: uint32(gamec)})
+			gamec++
 
 		case common.Type_REVIEWS:
-			s.Broadcast(client, messageDeserialized)
+			s.Broadcast(client, messageDeserialized, &common.IdempotencyID{Origin: "SV", Sequence: uint32(reviewc)})
+			reviewc++
 
 		case common.Type_AskForResults:
 			log.Debugf("message is Type_AskForResults")
@@ -131,7 +134,7 @@ func (s *Server) HandleConnection(client *Client) {
 	}
 }
 
-func (s *Server) Broadcast(client *Client, message common.ClientMessage) {
+func (s *Server) Broadcast(client *Client, message common.ClientMessage, idemId *common.IdempotencyID) {
 
 	ser := common.NewSerializer()
 
@@ -147,9 +150,9 @@ func (s *Server) Broadcast(client *Client, message common.ClientMessage) {
 
 		content := make([]byte, 4)
 		binary.BigEndian.PutUint32(content, eoftt)
-		s.BroadcastData(message.Type, common.NewMessage(client.Id, common.ProtocolMessage_Control, content), true)
+		s.BroadcastData(message.Type, common.NewMessage(client.Id, idemId, common.ProtocolMessage_Control, content), true)
 	} else {
-		s.BroadcastData(message.Type, common.NewMessage(client.Id, common.ProtocolMessage_Data, ser.WriteUint8(uint8(message.Type)).WriteString(message.Content).ToBytes()), false)
+		s.BroadcastData(message.Type, common.NewMessage(client.Id, idemId, common.ProtocolMessage_Data, ser.WriteUint8(uint8(message.Type)).WriteString(message.Content).ToBytes()), false)
 	}
 }
 

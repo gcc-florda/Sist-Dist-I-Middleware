@@ -32,10 +32,11 @@ func ReadState[T any](stg *TemporaryStorage, des func(*Deserializer) (T, error))
 	id   *IdempotencyID
 	data T
 }, error) {
+	stg.Reset()
 	s := make(chan *struct {
 		id   *IdempotencyID
 		data T
-	})
+	}, 10)
 	scanner, err := stg.ScannerDeserialize(scannerFunc(des))
 	if err != nil {
 		return nil, err

@@ -24,20 +24,9 @@ func Q1Map(r *schema.Game) schema.Partitionable {
 	}
 }
 
-func q1StateFromBytes(data []byte) (*schema.SOCounter, error) {
-	if len(data) == 0 {
-		return &schema.SOCounter{}, nil
-	}
-
-	d := common.NewDeserializer(data)
-
-	return schema.SOCounterDeserialize(&d)
-}
-
 type Q1 struct {
-	state     *schema.SOCounter
-	storage   *common.IdempotencyHandlerSingleFile[*schema.SOCounter]
-	basefiles string
+	state   *schema.SOCounter
+	storage *common.IdempotencyHandlerSingleFile[*schema.SOCounter]
 }
 
 func NewQ1(base string, id string, partition int, stage string) (*Q1, error) {

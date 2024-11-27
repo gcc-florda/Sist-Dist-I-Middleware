@@ -70,10 +70,6 @@ func NewQ3(base string, id string, partition int, top int) (*Q3, error) {
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	return &Q3{
 		state: &Q3State{
 			Top: state.Arr,
