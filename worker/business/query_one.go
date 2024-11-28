@@ -77,6 +77,12 @@ func (q *Q1) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 			Sequence:     1,
 			SentCallback: nil,
 		}
+
+		ch <- &controller.NextStageMessage{
+			Message:      nil,
+			Sequence:     2,
+			SentCallback: nil,
+		}
 	}()
 
 	return ch, ce

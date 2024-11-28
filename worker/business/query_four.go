@@ -117,6 +117,12 @@ func (q *Q4) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 			}
 			line++
 		}
+
+		cr <- &controller.NextStageMessage{
+			Message:      nil,
+			Sequence:     line + 1,
+			SentCallback: nil,
+		}
 	}()
 
 	return cr, ce

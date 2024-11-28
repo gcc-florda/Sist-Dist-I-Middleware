@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/op/go-logging"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -61,15 +62,19 @@ type messageFromQueue struct {
 }
 
 type Controller struct {
-	name         string
-	rcvFrom      []*rabbitmq.Queue
-	to           []*rabbitmq.Exchange
-	handlerChan  chan *messageToSend
-	protocol     Protocol
-	factory      HandlerFactory
-	handlers     map[common.JobID]*HandlerRuntime
-	housekeeping chan *HandlerRuntime
-	runtimeWG    sync.WaitGroup
+	name    string
+	rcvFrom []*rabbitmq.Queue
+	to      []*rabbitmq.Exchange
+
+	protocol Protocol
+
+	txFwd     chan<- *messageToSend
+	rxFwd     <-chan *messageToSend
+	factory   HandlerFactory
+	handlers  map[common.JobID]*HandlerRuntime
+	txFinish  chan<- *HandlerRuntime
+	rxFinish  <-chan *HandlerRuntime
+	runtimeWG sync.WaitGroup
 }
 
 func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
@@ -78,14 +83,16 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 	h := make(chan *HandlerRuntime, 50)
 
 	c := &Controller{
-		name:         controllerName,
-		rcvFrom:      from,
-		to:           to,
-		protocol:     protocol,
-		handlerChan:  mts,
-		factory:      handlerF,
-		handlers:     make(map[common.JobID]*HandlerRuntime),
-		housekeeping: h,
+		name:     controllerName,
+		rcvFrom:  from,
+		to:       to,
+		protocol: protocol,
+		txFwd:    mts,
+		rxFwd:    mts,
+		factory:  handlerF,
+		handlers: make(map[common.JobID]*HandlerRuntime),
+		txFinish: h,
+		rxFinish: h,
 	}
 	// Artificially add one to keep it spinning as long as we don't get a shutdown
 	c.runtimeWG.Add(1)
@@ -112,8 +119,8 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 			j,
 			h,
 			eof,
-			q.handlerChan,
-			q.housekeeping,
+			q.txFwd,
+			q.txFinish,
 		)
 		if err != nil {
 			return nil, err
@@ -125,19 +132,10 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 	return v, nil
 }
 
-func (q *Controller) removeHandler(h *HandlerRuntime) {
-	// BLOCKING CALL, wait for the handler to finish all its work.
-	// Not a problem that this blocks, because the others handlers
-	// are working in a separate goroutine, so they can do work.
-	log.Infof("Action: Deleting Handler %s - %s", h.name, h.JobId)
-	// TODO: maybe soft delete it? Then have a housekeeping task that makes it so it delete really old handlers
-	// If we are removing it from here it is because the handler consideres finished the task
-	// If so, then just close everything and ignore every message for it coming forward
-	// at most, they are duplicated EOFs
-	delete(q.handlers, h.JobId)
-	close(h.forJob)
-	h.Finish()
-	q.runtimeWG.Done()
+func (q *Controller) markHandlerAsFinished(h *HandlerRuntime) {
+	log.Infof("Action: Marking Handler as Finished %s - %s", h.ControllerName, h.JobId)
+	close(h.Tx)
+	q.handlers[h.JobId].Tx = nil
 }
 
 func (q *Controller) publish(routing string, m common.Serializable) {
@@ -160,71 +158,109 @@ func (q *Controller) buildIdemId(sequence uint32) *common.IdempotencyID {
 	}
 }
 
-func (q *Controller) Start() {
-	var end sync.WaitGroup
+func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-chan bool) {
+	defer s.Done()
 
-	end.Add(1)
-	go func() {
-		defer end.Done()
-		// Once we got a Shutdown AND all the runtimes closed themselves, then close the controller.
-		q.runtimeWG.Wait()
-		// At this point, absolutely no handler runtime is running. We can close this safely
-		close(q.housekeeping)
-		close(q.handlerChan)
-		log.Debugf("Shut down controller")
-	}()
-
-	end.Add(1)
-	go func() {
-		defer end.Done()
-		for h := range q.housekeeping {
-			q.removeHandler(h)
+	finishHandler := func(h *HandlerRuntime) {
+		log.Infof("Action: Removing Handler from List %s - %s", h.ControllerName, h.JobId)
+		if h.Tx != nil {
+			close(h.Tx)
 		}
-		log.Debugf("Closed all handlers")
-	}()
-
-	end.Add(1)
-	go func() {
-		defer end.Done()
-		// Listen for messages to send until all handlers AND a shutdown happened.
-		for mts := range q.handlerChan {
-			m, err := q.protocol.Marshal(mts.JobID, q.buildIdemId(mts.Sequence), mts.Body)
-			if err != nil {
-				log.Error(err)
-			}
-
-			if mts.Routing.Type == Routing_Broadcast {
-				q.broadcast(m)
-				if mts.Ack != nil {
-					mts.Ack.Ack(false)
-				}
-			}
-
-			if mts.Routing.Type == Routing_Unicast {
-				q.publish(q.protocol.Route(mts.Routing.Key), m)
-				if mts.Ack != nil {
-					mts.Ack.Ack(false)
-				}
-			}
-
-			if mts.Callback != nil {
-				mts.Callback()
-			}
-		}
-
-		log.Debugf("Sent all pending messages")
-	}()
-
-	chans := make([]<-chan amqp.Delivery, len(q.rcvFrom))
-	for i, v := range q.rcvFrom {
-		chans[i] = v.Consume()
+		h.Finish()
+		q.runtimeWG.Done()
 	}
 
+	d := 5 * time.Minute
+	timer := time.NewTimer(d)
+	for {
+		select {
+		case <-rxFinish:
+			for id := range q.handlers {
+				finishHandler(q.handlers[id])
+			}
+			return
+		case <-timer.C:
+			for id := range q.handlers {
+				q.handlers[id].Mark.Add(1)
+				if q.handlers[id].Mark.CompareAndSwap(q.handlers[id].Mark.Load(), 2) {
+					finishHandler(q.handlers[id])
+				}
+			}
+			timer.Reset(d)
+		}
+	}
+
+}
+
+func (q *Controller) finishHandlerTask(s *sync.WaitGroup) {
+	defer s.Done()
+	for h := range q.rxFinish {
+		q.markHandlerAsFinished(h)
+	}
+	log.Debugf("Closed all handlers")
+}
+
+func (q *Controller) closingTask(s *sync.WaitGroup) {
+	defer s.Done()
+	// Once we got a Shutdown AND all the runtimes closed themselves, then close the controller.
+	q.runtimeWG.Wait()
+	// At this point, absolutely no handler runtime is running. We can close this safely
+	close(q.txFinish)
+	close(q.txFwd)
+	log.Debugf("Shut down controller")
+}
+
+func (q *Controller) sendForwardTask(s *sync.WaitGroup) {
+	defer s.Done()
+	// Listen for messages to send until all handlers AND a shutdown happened.
+	for mts := range q.rxFwd {
+		m, err := q.protocol.Marshal(mts.JobID, q.buildIdemId(mts.Sequence), mts.Body)
+		if err != nil {
+			log.Error(err)
+		}
+
+		if mts.Routing.Type == Routing_Broadcast {
+			q.broadcast(m)
+			if mts.Ack != nil {
+				mts.Ack.Ack(false)
+			}
+		}
+
+		if mts.Routing.Type == Routing_Unicast {
+			q.publish(q.protocol.Route(mts.Routing.Key), m)
+			if mts.Ack != nil {
+				mts.Ack.Ack(false)
+			}
+		}
+
+		if mts.Callback != nil {
+			mts.Callback()
+		}
+	}
+
+	log.Debugf("Sent all pending messages")
+}
+
+func (q *Controller) Start() {
+	var end sync.WaitGroup
+	f := make(chan bool, 1)
+	end.Add(1)
+	go q.closingTask(&end)
+
+	end.Add(1)
+	go q.finishHandlerTask(&end)
+
+	end.Add(1)
+	go q.sendForwardTask(&end)
+
+	end.Add(1)
+	go q.removeInactiveHandlersTask(&end, f)
+
 	cases := make([]reflect.SelectCase, len(q.rcvFrom))
-	for i, ch := range chans {
+	for i, ch := range q.rcvFrom {
 		cases[i] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(ch),
+			Chan: reflect.ValueOf(ch.Consume()),
 		}
 	}
 
@@ -255,22 +291,28 @@ mainloop:
 			continue
 		}
 
-		h.forJob <- &messageFromQueue{
-			Delivery: d,
-			Message:  dm,
+		if h.Tx != nil {
+			h.Tx <- &messageFromQueue{
+				Delivery: d,
+				Message:  dm,
+			}
+		} else {
+			log.Debugf("A repeated message for an already finished handler was received. AutoACKING")
+			// The handler signaled that it finished, this is duplicated
+			d.Ack(false)
 		}
 	}
 	log.Debugf("Ending main loop")
 	// We have sent everything in flight, finalize the handlers
-	q.SignalNoMoreMessages()
+	f <- true
 
 	end.Wait()
 	log.Debugf("Finalized main loop for controller")
 }
 
 func (q *Controller) SignalNoMoreMessages() {
-	for k := range q.handlers {
-		close(q.handlers[k].forJob)
-		q.handlers[k].Finish()
-	}
+	// for k := range q.handlers {
+	// 	close(q.handlers[k].forJob)
+	// 	q.handlers[k].Finish()
+	// }
 }

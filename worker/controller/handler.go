@@ -4,6 +4,7 @@ import (
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
+	"sync/atomic"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -21,35 +22,52 @@ type Handler interface {
 }
 
 type HandlerRuntime struct {
-	JobId           common.JobID
-	name            string
-	toController    chan *messageToSend
-	handler         Handler
-	validateEOF     EOFValidator
-	forJob          chan *messageFromQueue
-	housekeeping    chan *HandlerRuntime
-	eofs            *EOFState
+	JobId          common.JobID
+	Tx             chan<- *messageFromQueue
+	ControllerName string
+	Mark           atomic.Int32
+
+	txFwd    chan<- *messageToSend
+	finished chan<- *HandlerRuntime
+
+	handler     Handler
+	validateEOF EOFValidator
+	rx          <-chan *messageFromQueue
+	eofs        *EOFState
+
 	removeOnCleanup bool
 	finish          chan bool
 	sequenceCounter uint32
 }
 
-func NewHandlerRuntime(controllerName string, j common.JobID, handler Handler, validator EOFValidator, send chan *messageToSend, housekeeping chan *HandlerRuntime) (*HandlerRuntime, error) {
+func NewHandlerRuntime(
+	controllerName string,
+	j common.JobID,
+	handler Handler,
+	validator EOFValidator,
+	send chan<- *messageToSend,
+	housekeeping chan<- *HandlerRuntime,
+) (*HandlerRuntime, error) {
 	eof, err := NewEOFState(common.Config.GetString("metasavepath"), filepath.Join(controllerName, j.String()))
 	if err != nil {
 		return nil, err
 	}
+
+	ch := make(chan *messageFromQueue, 100)
+
 	c := &HandlerRuntime{
 		JobId:           j,
-		name:            controllerName,
+		Tx:              ch,
+		ControllerName:  controllerName,
 		handler:         handler,
 		validateEOF:     validator,
-		toController:    send,
-		forJob:          make(chan *messageFromQueue, 10000),
-		housekeeping:    housekeeping,
+		txFwd:           send,
+		rx:              ch,
+		finished:        housekeeping,
 		eofs:            eof,
 		removeOnCleanup: false,
 		finish:          make(chan bool, 1),
+		Mark:            atomic.Int32{},
 	}
 
 	go c.Start()
@@ -61,12 +79,12 @@ func (h *HandlerRuntime) Start() {
 	//	- We finalize the job for this handler
 	//	- An external force closed the channel for receiving messages
 	defer func() {
-		log.Infof("Action: Handler Runtime Finalizing %s - %s", h.name, h.JobId)
+		log.Infof("Action: Handler Runtime Finalizing %s - %s", h.ControllerName, h.JobId)
 		h.finish <- true
 		close(h.finish)
 	}()
 
-	for msg := range h.forJob {
+	for msg := range h.rx {
 		if !msg.Message.IsEOF() {
 			h.handleDataMessage(msg)
 			continue
@@ -83,8 +101,7 @@ func (h *HandlerRuntime) Start() {
 			ok := h.handleNextStage()
 			if ok {
 				h.sequenceCounter += 1
-				// Ack the EOF that generated the send forward to
-				h.toController <- h.broadcast(&NextStageMessage{
+				h.txFwd <- h.broadcast(&NextStageMessage{
 					Message:  msgFwd,
 					Sequence: h.sequenceCounter,
 					SentCallback: func() {
@@ -93,13 +110,13 @@ func (h *HandlerRuntime) Start() {
 						// repeated, they will not generate the sequence, as they will never update
 						// and we will missing a token to start the sequence
 						h.eofs.SaveState(eof.TokenName, msg.Message.IdemID())
+						// Ack the EOF that generated the send forward to after everything was written
 						msg.Delivery.Ack(false)
-						h.removeOnCleanup = true
 						h.signalFinish()
 					},
 				}, nil)
 			}
-		} else if updated {
+		} else if updated && !finished {
 			h.eofs.SaveState(eof.TokenName, msg.Message.IdemID())
 			msg.Delivery.Ack(false)
 		} else if !updated && finished {
@@ -108,31 +125,33 @@ func (h *HandlerRuntime) Start() {
 		} else {
 			msg.Delivery.Ack(false)
 		}
+		h.Mark.Swap(0)
 	}
 }
 
 func (h *HandlerRuntime) signalFinish() {
 	// Tell the controller to close my sending channel
-	h.housekeeping <- h
+	h.removeOnCleanup = true
+	h.finished <- h
 }
 
 func (h *HandlerRuntime) Finish() {
 	// Ensure that the runtime has sent everything to the controller
-	log.Debugf("Action: Received Finishing Signal to Finish %s-%s", h.name, h.JobId)
+	log.Debugf("Action: Received Finishing Signal to Finish %s-%s", h.ControllerName, h.JobId)
 	<-h.finish
-	log.Debugf("Action: Shutting Down %s-%s | Remove: %t", h.name, h.JobId, h.removeOnCleanup)
+	log.Debugf("Action: Shutting Down %s-%s | Remove: %t", h.ControllerName, h.JobId, h.removeOnCleanup)
 	h.handler.Shutdown(h.removeOnCleanup)
-	log.Debugf("Action: Shutdown %s-%s", h.name, h.JobId)
+	log.Debugf("Action: Shutdown %s-%s", h.ControllerName, h.JobId)
 }
 
 func (h *HandlerRuntime) handleDataMessage(msg *messageFromQueue) {
 	out, err := h.handler.Handle(msg.Message.Data(), msg.Message.IdemID())
 	if err != nil {
-		log.Errorf("Action: Handling Message %s - %s| Result: Error | Error: %s | Data: %s", h.name, h.JobId, err, msg.Message.Data())
+		log.Errorf("Action: Handling Message %s - %s| Result: Error | Error: %s | Data: %s", h.ControllerName, h.JobId, err, msg.Message.Data())
 		msg.Delivery.Nack(false, true)
 	}
 	if out != nil {
-		h.toController <- h.unicast(out, &msg.Delivery)
+		h.txFwd <- h.unicast(out, &msg.Delivery)
 	} else {
 		msg.Delivery.Ack(false)
 	}
@@ -148,12 +167,15 @@ sendLoop:
 			if !ok {
 				break sendLoop
 			}
-			h.toController <- h.unicast(r, nil)
+			m := h.unicast(r, nil)
+			if m != nil {
+				h.txFwd <- m
+			}
 		case err, ok := <-ce:
 			if err == nil && !ok {
 				continue
 			}
-			log.Errorf("Action: Next Stage Message %s - %s | Results: Error | Error: %s", h.name, h.JobId, err)
+			log.Errorf("Action: Next Stage Message %s - %s | Results: Error | Error: %s", h.ControllerName, h.JobId, err)
 			return false
 		}
 	}
@@ -162,6 +184,9 @@ sendLoop:
 
 func (h *HandlerRuntime) unicast(m *NextStageMessage, d *amqp.Delivery) *messageToSend {
 	h.sequenceCounter = m.Sequence
+	if m.Message == nil {
+		return nil
+	}
 	return &messageToSend{
 		JobID:    h.JobId,
 		Sequence: m.Sequence,

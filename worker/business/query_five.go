@@ -77,7 +77,7 @@ func (b *SortedBatch[T]) Save(less func(T, T) bool) error {
 	for _, item := range b.Items {
 		by = append(by, item.Serialize()...)
 	}
-	// Avoid Syncing for every line, this is reduntant, temporary data, we can afford to lose it
+	// Avoid Syncing for every line, this is redundant, temporary data, we can afford to lose it
 	_, err = stg.Append(by)
 	if err != nil {
 		stg.Delete()
@@ -432,6 +432,12 @@ func (q *Q5) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 				}
 			}
 			line++
+		}
+
+		cr <- &controller.NextStageMessage{
+			Message:      nil,
+			Sequence:     line + 1,
+			SentCallback: nil,
 		}
 
 		if err := s.Err(); err != nil {
