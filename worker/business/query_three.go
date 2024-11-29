@@ -65,6 +65,11 @@ func NewQ3(base string, id string, partition int, top int) (*Q3, error) {
 	}
 
 	state, err := s.LoadOverwriteState(common.ReadArray(schema.NamedReviewCounterDeserialize))
+	if state == nil {
+		state = &common.ArraySerialize[*schema.NamedReviewCounter]{
+			Arr: make([]*schema.NamedReviewCounter, 0),
+		}
+	}
 
 	if err != nil {
 		return nil, err
@@ -93,6 +98,7 @@ func (q *Q3) Insert(rc *schema.NamedReviewCounter, idempotencyID *common.Idempot
 	err := q.storage.SaveState(idempotencyID, &common.ArraySerialize[*schema.NamedReviewCounter]{
 		Arr: q.state.Top,
 	})
+
 	if err != nil {
 		return err
 	}
@@ -115,7 +121,7 @@ func (q *Q3) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 		}
 		var line uint32 = 1
 		for _, pt := range q.state.Top {
-			if line < fs.LastSent() {
+			if line < fs.LastConfirmedSent() {
 				continue
 			}
 			ch <- &controller.NextStageMessage{

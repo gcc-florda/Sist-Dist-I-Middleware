@@ -316,6 +316,7 @@ func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.
 			if err != nil || bytesWritten == 0 {
 				return 0, err
 			}
+			to_write = make([]byte, 0, maxBatchSize)
 		}
 		reviewsLen++
 
@@ -323,6 +324,9 @@ func Q5MergeSort(sortedFile *common.TemporaryStorage, tempSortedFiles []*common.
 		if err != nil {
 			return 0, err
 		}
+	}
+	if len(to_write) != 0 {
+		sortedFile.Append(to_write)
 	}
 
 	return reviewsLen, nil
@@ -414,7 +418,7 @@ func (q *Q5) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 		}
 		var line uint32 = 1
 		for s.Scan() {
-			if line < fs.LastSent() {
+			if line < fs.LastConfirmedSent() {
 				continue
 			}
 			b := s.Bytes()

@@ -122,10 +122,10 @@ func (h *IdempotencyHandlerMultipleFiles[T]) LoadState(
 
 func (h *IdempotencyHandlerMultipleFiles[T]) SaveState(caused_by *IdempotencyID, state T, where string) error {
 	storage, err := h.filemanager.Open(where)
-	defer storage.Close()
 	if err != nil {
 		return err
 	}
+	defer storage.Close()
 	err = SaveState(caused_by, state, storage)
 	if err != nil {
 		return err
@@ -141,10 +141,10 @@ func (h *IdempotencyHandlerMultipleFiles[T]) ReadSerialState(
 	initial T,
 ) (T, error) {
 	f, err := h.filemanager.Open(filename)
-	defer f.Close()
 	if err != nil {
 		return initial, err
 	}
+	defer f.Close()
 	_, state, err := LoadSavedState(f, des, agg, initial)
 	if err != nil {
 		return initial, err

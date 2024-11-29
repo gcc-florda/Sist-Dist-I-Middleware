@@ -34,33 +34,6 @@ func CreateRandomBatch(name string, n int, idx int) (*business.SortedBatch[*sche
 	})
 }
 
-// func CreateRandomBatchSorted(n int, idx int) (*schema.NamedReviewBatch, *common.TemporaryStorage, error) {
-// 	batch := schema.NewNamedReviewBatch("temp", "99", idx)
-
-// 	for i := 0; i < n; i++ {
-// 		count := uint32(rand.Intn(1000))
-// 		batch.Add(&schema.NamedReviewCounter{
-// 			Name:  fmt.Sprintf("[%d] - Game N° %d - %d", idx, i, count),
-// 			Count: count,
-// 		})
-// 	}
-
-// 	file, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", "temp", fmt.Sprintf("batch_%d", batch.Index)))
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-// 	file.Overwrite([]byte{})
-
-// 	err = business.Q5PartialSort(batch, file)
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-
-// 	file.Reset()
-
-// 	return batch, file, nil
-// }
-
 func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 	file.Reset()
 
@@ -226,5 +199,52 @@ func TestQ5CalculateP90(t *testing.T) {
 		t.Fatalf("Expected index 90, got %d", idx)
 	} else {
 		t.Log("P90 calculated correctly")
+	}
+}
+
+func TestQ5CorrectResults(t *testing.T) {
+	q5, err := business.NewQ5("test_files", "99", 1, 90, 10)
+	FatalOnError(err, t, "Cannot create Q5")
+
+	ga := 100
+	fromExpected := business.Q5CalculatePi(ga, 90)
+	for i := ga; i > 0; i-- {
+		q5.Insert(&schema.NamedReviewCounter{
+			Name:  fmt.Sprintf("Game N° %d", i),
+			Count: uint32(i),
+		}, &common.IdempotencyID{
+			Origin:   "A",
+			Sequence: uint32(ga - i + 1),
+		})
+	}
+
+	cr, ce := q5.NextStage()
+	j := fromExpected + 1
+	for {
+		select {
+		case r, ok := <-cr:
+			if !ok {
+				break
+			}
+			if r.Message == nil {
+				return
+			}
+			d := common.NewDeserializer(r.Message.Serialize())
+			m, err := schema.NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				t.Fatalf("There was an error while deserializing a join result %s", err)
+			}
+
+			if m.Name != fmt.Sprintf("Game N° %d", j) {
+				t.Fatalf("Game %s Reviews Expected: %d Got: %d", m.Name, j, m.Count)
+			}
+			j++
+
+		case err, ok := <-ce:
+			if err == nil && !ok {
+				continue
+			}
+			t.Fatalf("There was an error while making the next stage %s", err)
+		}
 	}
 }

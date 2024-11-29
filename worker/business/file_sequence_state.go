@@ -20,8 +20,8 @@ func sequenceDeserialize(d *common.Deserializer) (*sequence, error) {
 }
 
 type FileSequence struct {
-	current uint32
-	storage *common.TemporaryStorage
+	lastSentSavedToDisk uint32
+	storage             *common.TemporaryStorage
 }
 
 func readLastSequence(stg *common.TemporaryStorage) (*sequence, error) {
@@ -64,16 +64,15 @@ func NewFileSequence(path string) (*FileSequence, error) {
 		return nil, err
 	}
 	return &FileSequence{
-		current: curr.nr,
-		storage: stg,
+		lastSentSavedToDisk: curr.nr,
+		storage:             stg,
 	}, nil
 }
 
-func (s *FileSequence) LastSent() uint32 {
-	return s.current
+func (s *FileSequence) LastConfirmedSent() uint32 {
+	return s.lastSentSavedToDisk
 }
 
 func (s *FileSequence) Sent() {
-	s.current += 1
-	s.storage.Append((&sequence{nr: s.current}).Serialize())
+	s.storage.Append((&sequence{nr: s.lastSentSavedToDisk}).Serialize())
 }

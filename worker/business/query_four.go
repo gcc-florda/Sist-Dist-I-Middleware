@@ -107,7 +107,7 @@ func (q *Q4) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 		}
 		var line uint32 = 1
 		for rc := range s {
-			if line < fs.LastSent() {
+			if line < fs.LastConfirmedSent() {
 				continue
 			}
 			cr <- &controller.NextStageMessage{

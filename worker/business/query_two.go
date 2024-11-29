@@ -67,6 +67,12 @@ func NewQ2(base string, stage string, id string, partition int, top int) (*Q2, e
 		return nil, err
 	}
 
+	if state == nil {
+		state = &common.ArraySerialize[*schema.PlayedTime]{
+			Arr: make([]*schema.PlayedTime, 0),
+		}
+	}
+
 	return &Q2{
 		state: &Q2State{
 			Top: state.Arr,
@@ -111,7 +117,7 @@ func (q *Q2) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 		}
 		var line uint32 = 1
 		for _, pt := range q.state.Top {
-			if line < fs.LastSent() {
+			if line < fs.LastConfirmedSent() {
 				continue
 			}
 			ch <- &controller.NextStageMessage{

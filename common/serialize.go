@@ -192,7 +192,7 @@ type ArraySerialize[T Serializable] struct {
 
 func (a *ArraySerialize[T]) Serialize() []byte {
 	s := NewSerializer()
-	ser := make([]Serializable, 0, len(a.Arr))
+	ser := make([]Serializable, len(a.Arr))
 	for i, v := range a.Arr {
 		ser[i] = v
 	}

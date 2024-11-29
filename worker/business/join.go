@@ -98,7 +98,7 @@ func (q *Join) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 
 		var line uint32 = 1
 		for game := range games {
-			if line < fs.LastSent() {
+			if line < fs.LastConfirmedSent() {
 				continue
 			}
 			reviews, err := q.reviewStorage.ReadSerialState(game.AppID, CountStateDeserialize, CountStateAggregate, &CountState{count: 0})
