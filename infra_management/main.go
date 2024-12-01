@@ -49,7 +49,8 @@ func InitLogger(logLevel string) error {
 }
 
 func PrintConfig(v *viper.Viper) {
-	log.Infof("action: config | result: success | ring port: %d | ring replicas: %d | worker port: %d",
+	log.Infof("action: config | result: success | ring ip: %s | ring port: %d | ring replicas: %d | worker port: %d",
+		v.GetInt("ring.ip"),
 		v.GetInt("ring.port"),
 		v.GetInt("ring.replicasAmount"),
 		v.GetInt("worker.port"),
@@ -70,7 +71,7 @@ func main() {
 
 	log.Debug("Creating manager")
 
-	manager, err := src.NewInfraManager(v.GetString("ring.port"), v.GetInt("ring.replicasAmount"))
+	manager, err := src.NewInfraManager(v.GetString("ring.ip"), v.GetString("ring.port"), v.GetInt("ring.replicasAmount"))
 
 	if err != nil {
 		log.Criticalf("Error creating manager: %s", err)

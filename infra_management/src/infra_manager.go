@@ -12,7 +12,7 @@ type InfraManager struct {
 	ReplicaManager *ReplicaManager
 }
 
-func NewInfraManager(ringPort string, ringReplicasAmount int) (*InfraManager, error) {
+func NewInfraManager(ringIp string, ringPort string, ringReplicasAmount int) (*InfraManager, error) {
 	id, err := strconv.Atoi(os.Getenv("MANAGER_ID"))
 
 	if err != nil {
@@ -21,7 +21,7 @@ func NewInfraManager(ringPort string, ringReplicasAmount int) (*InfraManager, er
 	}
 
 	return &InfraManager{
-		ReplicaManager: NewReplicaManager(id, ringReplicasAmount, ringPort),
+		ReplicaManager: NewReplicaManager(id, ringReplicasAmount, ringIp, ringPort),
 		WorkersManager: NewWorkerStatusManager(),
 	}, nil
 }
@@ -38,7 +38,7 @@ func (m *InfraManager) Start(workerPort string) error {
 		return err
 	}
 
-	m.ListenForWorkers(workerPort)
+	// m.ListenForWorkers(workerPort)
 
 	return nil
 }

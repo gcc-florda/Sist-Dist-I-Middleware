@@ -81,3 +81,24 @@ func ReviveContainer(name string, maxRetries int) error {
 
 	return nil
 }
+
+func DoWithRetry(f func() error, maxRetries int) error {
+	for i := 1; i <= maxRetries; i++ {
+		if err := f(); err != nil {
+			log.Debugf("Error while executing function: %v", err)
+
+			if i == maxRetries {
+				log.Errorf("Max retries reached")
+				return err
+			}
+
+			time.Sleep(10 * time.Second)
+
+			continue
+		}
+
+		return nil
+	}
+
+	return nil
+}

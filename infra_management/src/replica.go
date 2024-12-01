@@ -14,16 +14,18 @@ type ReplicaManager struct {
 	id                    int
 	coordinatorId         int
 	replicasAmount        int
+	ip                    string
 	port                  string
 	listener              net.Listener
 	postNeighbourMessages chan RingMessage
 }
 
-func NewReplicaManager(id int, replicasAmount int, port string) *ReplicaManager {
+func NewReplicaManager(id int, replicasAmount int, ip string, port string) *ReplicaManager {
 	return &ReplicaManager{
 		id:                    id,
 		coordinatorId:         0,
 		replicasAmount:        replicasAmount,
+		ip:                    ip,
 		port:                  port,
 		postNeighbourMessages: make(chan RingMessage),
 	}
@@ -49,7 +51,7 @@ func (rm *ReplicaManager) Start() error {
 
 func (rm *ReplicaManager) ListenPreNeighbour() error {
 	var err error
-	rm.listener, err = net.Listen("tcp", rm.port)
+	rm.listener, err = net.Listen("tcp", fmt.Sprintf(":%s", rm.port))
 	if err != nil {
 		log.Errorf("Failed to start listening on port %s: %s", rm.port, err)
 		return err
@@ -75,6 +77,7 @@ func (rm *ReplicaManager) ConnectPostNeighbour() {
 
 	for {
 		newConn, err := rm.EstablishConnection(postNeighId)
+		log.Debugf("Established connection with replica %d", postNeighId)
 
 		if err != nil {
 			go func(neighId int) {
@@ -118,13 +121,20 @@ func (rm *ReplicaManager) ConnectPostNeighbour() {
 }
 
 func (rm *ReplicaManager) EstablishConnection(id int) (net.Conn, error) {
-	log.Debugf("Establishing connection with replica %d", id)
-	conn, err := net.Dial("tcp", fmt.Sprintf("manager_%d:%s", id, rm.port))
-	if err != nil {
-		log.Errorf("Failed to establish connection with replica %d: %s", id, err)
-		return nil, err
-	}
-	return conn, nil
+	var conn net.Conn
+	var err error
+
+	err = common.DoWithRetry(func() error {
+		log.Debugf("Establishing connection with replica %d", id)
+		conn, err = net.Dial("tcp", fmt.Sprintf("manager_%d:%s", id, rm.port))
+		if err != nil {
+			log.Errorf("Failed to establish connection with replica %d: %s", id, err)
+			return err
+		}
+		return nil
+	}, 3)
+
+	return conn, err
 }
 
 func (rm *ReplicaManager) TalkPostNeighbour(id int, conn net.Conn, finishConnection chan struct{}) {
@@ -137,10 +147,10 @@ func (rm *ReplicaManager) TalkPostNeighbour(id int, conn net.Conn, finishConnect
 		for {
 			select {
 			case <-finishHealthCheck:
-				log.Debugf("Health check done for replica %d", rm.id)
+				log.Debugf("Health check done for replica %d", id)
 				return
 			case rm.postNeighbourMessages <- *NewRingMessage(HEALTHCHECK, ""):
-				log.Debugf("Sent health check message to replica %d, sleeping", rm.id)
+				log.Debugf("Sent health check message to replica %d, sleeping", id)
 				time.Sleep(10 * time.Second)
 			}
 		}
@@ -187,10 +197,10 @@ func (rm *ReplicaManager) TalkPostNeighbour(id int, conn net.Conn, finishConnect
 	}
 
 	close(finishHealthCheck)
-	log.Debugf("Closed health check channel for replica %d", rm.id)
+	log.Debugf("Closed health check channel for replica %d", id)
 	wg.Wait()
 	close(finishConnection)
-	log.Debugf("Closed done channel for replica %d", rm.id)
+	log.Debugf("Closed done channel for replica %d", id)
 }
 
 func (rm *ReplicaManager) Revive(id int) error {
@@ -300,6 +310,8 @@ func GetPostNeighbourId(replicasAmount int, id int) int {
 	} else {
 		postNeighId = id + 1
 	}
+
+	log.Debugf("Post neighbour id for replica %d is %d", id, postNeighId)
 
 	return postNeighId
 }

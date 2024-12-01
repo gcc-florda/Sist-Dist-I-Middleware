@@ -137,7 +137,10 @@ func Send(message string, conn net.Conn) error {
 
 	for bytesSent < messageLength {
 		n, err := conn.Write(buffer.Bytes())
-		FailOnError(err, "Failed to send bytes to server")
+		if err != nil {
+			log.Errorf("Failed to send bytes to %s: %s", conn.LocalAddr().String(), err)
+			return err
+		}
 		bytesSent += n
 	}
 

@@ -1,4 +1,5 @@
 ring:
+  ip: "manager"
   port: 8082
   replicasAmount: 4
 worker:

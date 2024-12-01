@@ -44,25 +44,14 @@ func (rm *RingMessage) IsAlive() bool {
 
 func (rm *RingMessage) Serialize() string {
 	log.Debugf("Serializing message: %s|%s", rm.Type, rm.Content)
-	switch rm.Type {
-	case ELECTION:
-		return fmt.Sprintf("%s|%s", rm.Type, rm.Content)
-	case COORDINATOR:
-		return fmt.Sprintf("%s|%s", rm.Type, rm.Content)
-	case HEALTHCHECK:
-		return string(rm.Type)
-	case ALIVE:
-		return string(rm.Type)
-	default:
-		return ""
-	}
+	return fmt.Sprintf("%s|%s", rm.Type, rm.Content)
 }
 
 func Deserialize(message string) (*RingMessage, error) {
 	log.Debugf("Deserializing message: %s", message)
 	parts := strings.Split(message, "|")
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("Failed deserializing message: %s", message)
+		return nil, fmt.Errorf("failed deserializing message: %s", message)
 	}
 
 	switch parts[0] {
@@ -75,6 +64,6 @@ func Deserialize(message string) (*RingMessage, error) {
 	case string(ALIVE):
 		return NewRingMessage(ALIVE, ""), nil
 	default:
-		return nil, fmt.Errorf("Failed deserializing message, invalid type: %s", message)
+		return nil, fmt.Errorf("failed deserializing message, invalid type: %s", message)
 	}
 }
