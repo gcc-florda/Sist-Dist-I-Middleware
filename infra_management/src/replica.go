@@ -20,7 +20,6 @@ type ReplicaManager struct {
 }
 
 func NewReplicaManager(id int, replicasAmount int, port string) *ReplicaManager {
-
 	return &ReplicaManager{
 		id:                    id,
 		coordinatorId:         0,
@@ -72,7 +71,7 @@ func (rm *ReplicaManager) ConnectPostNeighbour() {
 	postNeighId := GetPostNeighbourId(rm.replicasAmount, rm.id)
 	var conn net.Conn
 	var connLock sync.Mutex
-	done := make(chan struct{})
+	finishConnection := make(chan struct{})
 
 	for {
 		newConn, err := rm.EstablishConnection(postNeighId)
@@ -96,7 +95,7 @@ func (rm *ReplicaManager) ConnectPostNeighbour() {
 				}
 
 				postNeighId = neighId
-				close(done)
+				close(finishConnection)
 			}(postNeighId)
 
 			postNeighId = GetPostNeighbourId(rm.replicasAmount, postNeighId)
@@ -112,8 +111,8 @@ func (rm *ReplicaManager) ConnectPostNeighbour() {
 		conn = newConn
 		connLock.Unlock()
 
-		go rm.TalkPostNeighbour(postNeighId, conn, done)
-		<-done
+		go rm.TalkPostNeighbour(postNeighId, conn, finishConnection)
+		<-finishConnection
 		log.Debugf("Post neighbour connection closed, reconnecting to %d", postNeighId)
 	}
 }
@@ -128,16 +127,16 @@ func (rm *ReplicaManager) EstablishConnection(id int) (net.Conn, error) {
 	return conn, nil
 }
 
-func (rm *ReplicaManager) TalkPostNeighbour(id int, conn net.Conn, done chan struct{}) {
+func (rm *ReplicaManager) TalkPostNeighbour(id int, conn net.Conn, finishConnection chan struct{}) {
 	var wg sync.WaitGroup
-	healthCheckDone := make(chan struct{})
+	finishHealthCheck := make(chan struct{})
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
 			select {
-			case <-healthCheckDone:
+			case <-finishHealthCheck:
 				log.Debugf("Health check done for replica %d", rm.id)
 				return
 			case rm.postNeighbourMessages <- *NewRingMessage(HEALTHCHECK, ""):
@@ -187,10 +186,10 @@ func (rm *ReplicaManager) TalkPostNeighbour(id int, conn net.Conn, done chan str
 		}
 	}
 
-	close(healthCheckDone)
+	close(finishHealthCheck)
 	log.Debugf("Closed health check channel for replica %d", rm.id)
 	wg.Wait()
-	close(done)
+	close(finishConnection)
 	log.Debugf("Closed done channel for replica %d", rm.id)
 }
 
@@ -228,7 +227,10 @@ func (rm *ReplicaManager) HandlePreNeighbour(conn net.Conn) {
 		} else if replicaMessage.IsCoordinator() {
 			rm.ManageCoordinatorMessage(replicaMessage)
 		} else if replicaMessage.IsHealthCheck() {
-			rm.ManageHealthCheckMessage(conn)
+			if rm.ManageHealthCheckMessage(conn) != nil {
+				log.Criticalf("Error receiving pre neighbour alive message: %s", err)
+				return
+			}
 		} else {
 			log.Criticalf("Unknown pre neighbour message: %s", message)
 		}
@@ -238,7 +240,8 @@ func (rm *ReplicaManager) HandlePreNeighbour(conn net.Conn) {
 
 func (rm *ReplicaManager) ManageElectionMessage(msg *RingMessage) {
 	log.Debugf("Received election message: %s", msg)
-	if strings.Contains(msg.Content, strconv.Itoa(rm.id)) {
+	if strings.Contains(msg.Content, strconv.Itoa(rm.id)) || rm.coordinatorId == rm.id {
+		rm.coordinatorId = rm.id
 		log.Debugf("Election message already visited replica %d", rm.id)
 		coordMessage := NewRingMessage(COORDINATOR, strconv.Itoa(rm.id))
 		log.Debugf("Sending coordinator message: %s", coordMessage)
@@ -254,11 +257,18 @@ func (rm *ReplicaManager) ManageElectionMessage(msg *RingMessage) {
 func (rm *ReplicaManager) ManageCoordinatorMessage(msg *RingMessage) error {
 	log.Debugf("Received coordinator message: %s", msg)
 	var err error
-	rm.coordinatorId, err = strconv.Atoi(msg.Content)
+	newCoord, err := strconv.Atoi(msg.Content)
 	if err != nil {
 		log.Errorf("Error parsing coordinator message: %s", err)
 		return err
 	}
+
+	if rm.coordinatorId == newCoord {
+		log.Debugf("Coordinator replica %d already set", newCoord)
+		return nil
+	}
+
+	rm.coordinatorId = newCoord
 
 	log.Debugf("Sending coordinator message to post neighbour")
 	rm.postNeighbourMessages <- *msg
