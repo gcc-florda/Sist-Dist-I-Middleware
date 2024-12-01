@@ -4,13 +4,8 @@ services:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_1
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
       - MANAGER_ID=1
-    links:
-      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
@@ -20,13 +15,8 @@ services:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_2
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
       - MANAGER_ID=2
-    links:
-      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
@@ -36,13 +26,8 @@ services:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_3
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
       - MANAGER_ID=3
-    links:
-      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
@@ -52,32 +37,11 @@ services:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_4
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
       - MANAGER_ID=4
-    links:
-      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
       - /var/run/docker.sock:/var/run/docker.sock
-  rabbitmq:
-    container_name: rabbit
-    healthcheck:
-      interval: 5s
-      retries: 5
-      test:
-        - CMD
-        - rabbitmqctl
-        - status
-      timeout: 10s
-    image: rabbitmq:3-management
-    ports:
-      - 5672:5672
-      - 15672:15672
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
 volumes:
   rabbitmq_data:
