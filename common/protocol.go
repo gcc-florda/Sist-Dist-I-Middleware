@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 )
 
 const (
@@ -138,6 +139,24 @@ func Send(message string, conn net.Conn) error {
 		n, err := conn.Write(buffer.Bytes())
 		FailOnError(err, "Failed to send bytes to server")
 		bytesSent += n
+	}
+
+	return nil
+}
+
+func SendWithRetry(message string, conn net.Conn, retries int) error {
+	for i := 0; i < retries; i++ {
+		err := Send(message, conn)
+
+		if err == nil {
+			return nil
+		}
+
+		if i == retries-1 {
+			return err
+		}
+
+		time.Sleep(5 * time.Second)
 	}
 
 	return nil

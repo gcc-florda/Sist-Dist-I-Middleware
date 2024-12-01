@@ -1,11 +1,9 @@
 package src
 
 import (
-	"bytes"
 	"fmt"
 	"middleware/common"
 	"net"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -46,30 +44,11 @@ func (w *WorkerStatus) UpdateWorkerStatus(alive bool, conn net.Conn) {
 
 func (w *WorkerStatus) Revive() {
 	log.Debugf("Reviving worker: %s", w.Name)
-	// Kill the worker container first
-	stopCmd := exec.Command("docker", "stop", w.Name)
-	var stopOut, stopErr bytes.Buffer
-	stopCmd.Stdout = &stopOut
-	stopCmd.Stderr = &stopErr
-
-	if err := stopCmd.Run(); err != nil {
-		log.Infof("DOCKER STOP | Error while stoping worker container: %v", err)
-	} else {
-		log.Infof("DOCKER STOP | Worker container stopped: %s", w.Name)
+	if common.ReviveContainer(w.Name, 3) != nil {
+		log.Criticalf("Failed to revive worker: %s", w.Name)
+		return
 	}
-
-	// Revive the worker container
-	startCmd := exec.Command("docker", "start", w.Name)
-	var startOut, startErr bytes.Buffer
-	startCmd.Stdout = &startOut
-	startCmd.Stderr = &startErr
-
-	if err := startCmd.Run(); err != nil {
-		log.Infof("DOCKER START | Error while starting worker container: %v", err)
-	} else {
-		log.Infof("DOCKER START | Worker container started: %s", w.Name)
-	}
-	log.Debugf("Worker revived: %s", w.Name)
+	log.Debugf("Worker revived: %s, establishing connection", w.Name)
 	w.EstablishConnection()
 }
 
