@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/op/go-logging"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -160,6 +161,14 @@ func (q *Controller) buildIdemId(sequence uint32) *common.IdempotencyID {
 
 func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-chan bool) {
 	defer s.Done()
+	ids := make([]uuid.UUID, 0)
+
+	removeIds := func() {
+		for _, id := range ids {
+			delete(q.handlers, id)
+		}
+		ids = make([]uuid.UUID, 0)
+	}
 
 	finishHandler := func(h *HandlerRuntime) {
 		log.Infof("Action: Removing Handler from List %s - %s", h.ControllerName, h.JobId)
@@ -168,6 +177,7 @@ func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-ch
 		}
 		h.Finish()
 		q.runtimeWG.Done()
+		ids = append(ids, h.JobId)
 	}
 
 	d := 5 * time.Minute
@@ -178,6 +188,7 @@ func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-ch
 			for id := range q.handlers {
 				finishHandler(q.handlers[id])
 			}
+			removeIds()
 			return
 		case <-timer.C:
 			for id := range q.handlers {
@@ -186,6 +197,8 @@ func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-ch
 					finishHandler(q.handlers[id])
 				}
 			}
+			removeIds()
+
 			timer.Reset(d)
 		}
 	}
