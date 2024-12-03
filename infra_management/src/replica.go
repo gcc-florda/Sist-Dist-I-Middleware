@@ -11,30 +11,27 @@ import (
 )
 
 type ReplicaManager struct {
-	id              int
-	coordinatorId   int
-	replicasAmount  int
-	ip              string
-	port            string
-	listener        net.Listener
-	activeNeighbour *ReplicaNeighbour
-	neighbours      []*ReplicaNeighbour
+	id             int
+	coordinatorId  int
+	replicasAmount int
+	ip             string
+	port           string
+	send           chan *RingMessage
+	neighbours     []*ReplicaNeighbour
 }
 
 type ReplicaNeighbour struct {
-	id      int
-	conn    net.Conn
-	channel chan RingMessage
+	id   int
+	conn net.Conn
 }
 
 func NewReplicaManager(id int, replicasAmount int, ip string, port string) *ReplicaManager {
 	return &ReplicaManager{
 		id:             id,
-		coordinatorId:  0,
 		replicasAmount: replicasAmount,
 		ip:             ip,
 		port:           port,
-		neighbours:     make([]*ReplicaNeighbour, 0),
+		neighbours:     make([]*ReplicaNeighbour, replicasAmount-1),
 	}
 }
 
@@ -43,125 +40,35 @@ func (rm *ReplicaManager) Start() error {
 
 	wg.Add(2)
 
-	go rm.ListenPreNeighbour()
+	go rm.ListenNeighbours()
 
-	go rm.CheckPostNeighbour()
+	rm.InitNetwork()
 
-	if rm.id == 1 {
-		rm.StartElection()
-	}
+	go rm.HealthCheck()
+
+	go rm.TalkNeighbour()
+
+	rm.StartElection()
 
 	wg.Wait()
 
 	return nil
 }
 
-func (rm *ReplicaManager) ListenPreNeighbour() error {
-	var err error
-	rm.listener, err = net.Listen("tcp", fmt.Sprintf(":%s", rm.port))
-	if err != nil {
-		log.Errorf("Failed to start listening on port %s: %s", rm.port, err)
-		return err
-	}
-	defer rm.listener.Close()
+func (rm *ReplicaManager) InitNetwork() {
+	log.Debugf("Initializing network")
 
-	for {
-		conn, err := rm.listener.Accept()
-		if err != nil {
-			log.Errorf("Failed to accept connection: %s", err)
+	for i := 1; i <= rm.replicasAmount; i++ {
+		if i == rm.id {
 			continue
 		}
 
-		go rm.HandlePreNeighbour(conn)
-	}
-}
-
-func (rm *ReplicaManager) CheckPostNeighbour() {
-	go func() {
-		for {
-			rm.SendMessageToPostNeighbour(NewRingMessage(HEALTHCHECK, ""))
-			time.Sleep(10 * time.Second)
+		conn, err := rm.EstablishConnection(i)
+		if err != nil {
+			log.Errorf("Failed to establish connection with replica %d: %s", i, err)
+			return
 		}
-	}()
-
-	postNeigh := rm.GetPostNeighbour(rm.id)
-	for {
-		if rm.activeNeighbour != nil {
-			for msg := range rm.activeNeighbour.channel {
-				if common.SendWithRetry(msg.Serialize(), rm.activeNeighbour.conn, 3) != nil {
-					log.Errorf("Failed to send message to post neighbour %d", rm.activeNeighbour.id)
-					rm.activeNeighbour = nil
-					break
-				}
-
-				if msg.IsHealthCheck() {
-					log.Debugf("Waiting for alive message from post neighbour")
-					recv, err := common.Receive(rm.activeNeighbour.conn)
-					if err != nil {
-						log.Errorf("Error receiving alive message from post neighbour: %s", err)
-						if rm.coordinatorId == rm.activeNeighbour.id {
-							log.Errorf("Coordinator replica %d is down", rm.coordinatorId)
-							rm.coordinatorId = 0
-							rm.StartElection()
-						}
-						rm.activeNeighbour = nil
-						break
-					}
-
-					aliveMessage, err := Deserialize(recv)
-					if err != nil {
-						log.Errorf("Error deserializing alive message: %s", err)
-						if rm.coordinatorId == rm.activeNeighbour.id {
-							log.Errorf("Coordinator replica %d is down", rm.coordinatorId)
-							rm.coordinatorId = 0
-							rm.StartElection()
-						}
-						rm.activeNeighbour = nil
-						break
-					}
-
-					if !aliveMessage.IsAlive() {
-						log.Errorf("Expecting alive message but received: %s", aliveMessage)
-					}
-
-					log.Debugf("Received alive message from post neighbour")
-				}
-			}
-		} else {
-			if postNeigh.conn == nil {
-				conn, err := rm.EstablishConnection(postNeigh.id)
-				if err != nil {
-					log.Errorf("Failed to establish connection with post neighbour %d: %s", postNeigh.id, err)
-					go func() {
-						err = rm.Revive(postNeigh.id)
-
-						if err != nil {
-							log.Criticalf("Failed to revive replica %d: %s", postNeigh.id, err)
-						}
-
-						conn, err := rm.EstablishConnection(postNeigh.id)
-
-						if err != nil {
-							log.Criticalf("Failed to establish connection with post neighbour %d: %s", postNeigh.id, err)
-							return
-						}
-
-						postNeigh.conn = conn
-
-						rm.activeNeighbour = postNeigh
-					}()
-
-					postNeigh = rm.GetPostNeighbour(postNeigh.id)
-					continue
-				}
-
-				postNeigh.conn = conn
-			}
-
-			if rm.activeNeighbour == nil {
-				rm.activeNeighbour = postNeigh
-			}
-		}
+		rm.neighbours[i-1] = &ReplicaNeighbour{id: i, conn: conn}
 	}
 }
 
@@ -182,6 +89,61 @@ func (rm *ReplicaManager) EstablishConnection(id int) (net.Conn, error) {
 	return conn, err
 }
 
+func (rm *ReplicaManager) ListenNeighbours() error {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", rm.port))
+	if err != nil {
+		log.Errorf("Failed to start listening on port %s: %s", rm.port, err)
+		return err
+	}
+	defer listener.Close()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Errorf("Failed to accept connection: %s", err)
+			continue
+		}
+
+		go rm.HandleNeighbour(conn)
+	}
+}
+
+func (rm *ReplicaManager) HealthCheck() {
+	for {
+		rm.send <- NewRingMessage(HEALTHCHECK, "")
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func (rm *ReplicaManager) TalkNeighbour() {
+	var err error
+
+	reviver := make(chan int)
+
+	neigh := rm.GetPostNeighbour(rm.id)
+	for {
+		select {
+		case id := <-reviver:
+			log.Debugf("Revived replica %d", neigh.id)
+			neigh = rm.GetNeighbour(id)
+			neigh.conn, err = rm.EstablishConnection(neigh.id)
+			if err != nil {
+				log.Criticalf("Failed to establish connection with replica %d after reviving: %s", neigh.id, err)
+				continue
+			}
+		case msg := <-rm.send:
+			if common.Send(msg.Serialize(), neigh.conn) != nil {
+				neigh := rm.GetPostNeighbour(neigh.id)
+				go func() {
+					rm.Revive(neigh.id)
+					reviver <- neigh.id
+				}()
+			}
+			time.Sleep(5 * time.Second)
+		}
+	}
+}
+
 func (rm *ReplicaManager) Revive(id int) error {
 	log.Debugf("Reviving replica %d", id)
 
@@ -192,10 +154,10 @@ func (rm *ReplicaManager) StartElection() {
 	log.Debugf("Starting election")
 	msg := NewRingMessage(ELECTION, strconv.Itoa(rm.id))
 	log.Debugf("Sending election message: %s", msg)
-	rm.SendMessageToPostNeighbour(msg)
+	rm.send <- msg
 }
 
-func (rm *ReplicaManager) HandlePreNeighbour(conn net.Conn) {
+func (rm *ReplicaManager) HandleNeighbour(conn net.Conn) {
 	for {
 		message, err := common.Receive(conn)
 
@@ -223,7 +185,6 @@ func (rm *ReplicaManager) HandlePreNeighbour(conn net.Conn) {
 		} else {
 			log.Criticalf("Unknown pre neighbour message: %s", message)
 		}
-
 	}
 }
 
@@ -234,12 +195,12 @@ func (rm *ReplicaManager) ManageElectionMessage(msg *RingMessage) {
 		log.Debugf("Election message already visited replica %d", rm.id)
 		coordMessage := NewRingMessage(COORDINATOR, strconv.Itoa(rm.id))
 		log.Debugf("Sending coordinator message: %s", coordMessage)
-		rm.SendMessageToPostNeighbour(coordMessage)
+		rm.send <- coordMessage
 	} else {
 		log.Debugf("Passing election message to post neighbour")
 		msg.Content = fmt.Sprintf("%s,%s", msg.Content, strconv.Itoa(rm.id))
 		log.Debugf("Updated election message: %s", msg)
-		rm.SendMessageToPostNeighbour(msg)
+		rm.send <- msg
 	}
 }
 
@@ -260,7 +221,7 @@ func (rm *ReplicaManager) ManageCoordinatorMessage(msg *RingMessage) error {
 	rm.coordinatorId = newCoord
 
 	log.Debugf("Sending coordinator message to post neighbour")
-	rm.SendMessageToPostNeighbour(msg)
+	rm.send <- msg
 
 	return nil
 }
@@ -280,14 +241,13 @@ func (rm *ReplicaManager) ManageHealthCheckMessage(conn net.Conn) error {
 	return nil
 }
 
-func (rm *ReplicaManager) SendMessageToPostNeighbour(msg *RingMessage) {
-	for {
-		if rm.activeNeighbour != nil {
-			rm.activeNeighbour.channel <- *msg
-			return
+func (rm *ReplicaManager) GetNeighbour(id int) *ReplicaNeighbour {
+	for _, neigh := range rm.neighbours {
+		if neigh.id == id {
+			return neigh
 		}
-		time.Sleep(1 * time.Second)
 	}
+	return nil
 }
 
 func (rm *ReplicaManager) GetPostNeighbour(id int) *ReplicaNeighbour {
@@ -314,9 +274,8 @@ func (rm *ReplicaManager) GetPostNeighbour(id int) *ReplicaNeighbour {
 	}
 
 	neigh := &ReplicaNeighbour{
-		id:      postNeighId,
-		conn:    nil,
-		channel: make(chan RingMessage),
+		id:   postNeighId,
+		conn: nil,
 	}
 
 	log.Debugf("Appending post neighbour %d to neighbours", postNeighId)
