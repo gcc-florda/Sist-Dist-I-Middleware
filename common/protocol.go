@@ -148,6 +148,7 @@ func Send(message string, conn net.Conn) error {
 }
 
 func SendWithRetry(message string, conn net.Conn, retries int) error {
+	log.Debugf("Sending tcp message %s", message)
 	for i := 0; i < retries; i++ {
 		err := Send(message, conn)
 
