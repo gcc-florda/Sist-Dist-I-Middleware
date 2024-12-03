@@ -30,7 +30,6 @@ func ensureDir(dirname string) error {
 	// Directory exists and is valid, or was created successfully
 	return nil
 }
-
 func newFileManager(dirname string) (*fileManager, error) {
 	err := ensureDir(dirname)
 	if err != nil {
