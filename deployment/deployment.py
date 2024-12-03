@@ -3,7 +3,7 @@ import copy
 from pathlib import Path
 import shutil
 
-CLIENTS_NR = 2
+CLIENTS_NR = 3
 
 def represent_none(self, _):
     return self.represent_scalar('tag:yaml.org,2002:null', '')
@@ -65,7 +65,12 @@ controllers = {
 def create_node_definition(node_name: str):
     cpy = copy.deepcopy(worker_compose)
     cpy['worker']['container_name'] = f"node_{node_name.lower()}"
-    cpy['worker']['volumes'][-1] = f"./configs/controller_node_{node_name}.yaml:/app/controllers.yaml"
+    cpy['worker']['volumes'][-3] = f"./configs/controller_node_{node_name}.yaml:/app/controllers.yaml"
+    cpy['worker']['volumes'][-2] = f"./worker_files/node_{node_name}/data:/app/data"
+    cpy['worker']['volumes'][-1] = f"./worker_files/node_{node_name}/metadata:/app/metadata"
+    Path(f"./worker_files/node_{node_name}").mkdir(exist_ok=True)
+    Path(f"./worker_files/node_{node_name}/data").mkdir(exist_ok=True)
+    Path(f"./worker_files/node_{node_name}/metadata").mkdir(exist_ok=True)
     return {
         node_name.lower(): cpy['worker']
     }
@@ -91,6 +96,9 @@ def traverse(controllers: dict, architecture: dict):
         for x in v:
             r.append(x)
     return r
+
+shutil.rmtree("./worker_files", ignore_errors=True)
+Path("./worker_files").mkdir(exist_ok=True)
 
 shutil.rmtree("./configs", ignore_errors=True)     
 Path("./configs").mkdir(exist_ok=True)

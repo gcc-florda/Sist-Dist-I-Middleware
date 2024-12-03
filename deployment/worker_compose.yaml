@@ -12,3 +12,5 @@ worker:
       - ./architecture.yaml:/app/architecture.yaml
       - ./worker/common.yaml:/app/common.yaml
       - ./configs/controller_node_<<NODE_ID>>.yaml:/app/controllers.yaml
+      - ./worker_files/node_<<NODE_ID>>/data:/app/data
+      - ./worker_files/node_<<NODE_ID>>/metadata:/app/metadata
