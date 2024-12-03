@@ -3,6 +3,7 @@ package business
 import (
 	"fmt"
 	"middleware/common"
+	"middleware/worker/controller"
 	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
@@ -44,67 +45,45 @@ type Q2State struct {
 	N   int
 }
 
-func (s *Q2State) Serialize() []byte {
-	se := common.NewSerializer()
-	serializables := make([]common.Serializable, len(s.Top))
-	for i, pt := range s.Top {
-		serializables[i] = pt
-	}
-	return se.WriteArray(serializables).ToBytes()
-}
-
-func q2StateFromBytes(data []byte, top int) (*Q2State, error) {
-	if len(data) == 0 {
-		return &Q2State{
-			Top: make([]*schema.PlayedTime, 0, top),
-			N:   top,
-		}, nil
-	}
-
-	d := common.NewDeserializer(data)
-
-	res, err := common.ReadArray(&d, schema.PlayedTimeDeserialize)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Q2State{
-		Top: res,
-		N:   top,
-	}, nil
-}
-
 type Q2 struct {
-	state   *Q2State
-	storage *common.TemporaryStorage
+	state     *Q2State
+	storage   *common.IdempotencyHandlerSingleFile[*common.ArraySerialize[*schema.PlayedTime]]
+	basefiles string
 }
 
 func NewQ2(base string, stage string, id string, partition int, top int) (*Q2, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_two_%d", partition), stage, id, "results"))
+	basefiles := filepath.Join(".", base, fmt.Sprintf("query_two_%d", partition), stage, id)
+
+	s, err := common.NewIdempotencyHandlerSingleFile[*common.ArraySerialize[*schema.PlayedTime]](
+		filepath.Join(basefiles, "results"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	diskState, err := s.ReadAll()
+	state, err := s.LoadOverwriteState(common.ReadArray(schema.PlayedTimeDeserialize))
 
 	if err != nil {
 		return nil, err
 	}
 
-	state, err := q2StateFromBytes(diskState, top)
-
-	if err != nil {
-		return nil, err
+	if state == nil {
+		state = &common.ArraySerialize[*schema.PlayedTime]{
+			Arr: make([]*schema.PlayedTime, 0),
+		}
 	}
 
 	return &Q2{
-		state:   state,
-		storage: s,
+		state: &Q2State{
+			Top: state.Arr,
+			N:   top,
+		},
+		storage:   s,
+		basefiles: basefiles,
 	}, nil
 }
 
-func (q *Q2) Insert(games *schema.PlayedTime) error {
+func (q *Q2) Insert(games *schema.PlayedTime, idempotencyID *common.IdempotencyID) error {
 	q.state.Top = append(q.state.Top, games)
 
 	sort.Slice(q.state.Top, func(i, j int) bool {
@@ -114,7 +93,10 @@ func (q *Q2) Insert(games *schema.PlayedTime) error {
 	if len(q.state.Top) > q.state.N {
 		q.state.Top = q.state.Top[:q.state.N]
 	}
-	_, err := q.storage.SaveState(q.state)
+	err := q.storage.SaveState(idempotencyID, &common.ArraySerialize[*schema.PlayedTime]{
+		Arr: q.state.Top,
+	})
+
 	if err != nil {
 		return err
 	}
@@ -122,28 +104,51 @@ func (q *Q2) Insert(games *schema.PlayedTime) error {
 	return nil
 }
 
-func (q *Q2) NextStage() (<-chan schema.Partitionable, <-chan error) {
-	ch := make(chan schema.Partitionable, q.state.N) //Change this later
+func (q *Q2) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
+	ch := make(chan *controller.NextStageMessage, q.state.N) //Change this later
 	ce := make(chan error, 1)
 	go func() {
 		defer close(ch)
 		defer close(ce)
-
+		fs, err := NewFileSequence(filepath.Join(q.basefiles, "sent_lines"))
+		if err != nil {
+			ce <- err
+			return
+		}
+		var line uint32 = 1
 		for _, pt := range q.state.Top {
-			ch <- pt
+			if line < fs.LastConfirmedSent() {
+				continue
+			}
+			ch <- &controller.NextStageMessage{
+				Message:      pt,
+				Sequence:     line,
+				SentCallback: fs.Sent,
+			}
+			line++
+		}
+
+		ch <- &controller.NextStageMessage{
+			Message:      nil,
+			Sequence:     line + 1,
+			SentCallback: nil,
 		}
 	}()
 
 	return ch, ce
 }
 
-func (q *Q2) Handle(protocolData []byte) (schema.Partitionable, error) {
+func (q *Q2) Handle(protocolData []byte, idempotencyID *common.IdempotencyID) (*controller.NextStageMessage, error) {
+	if q.storage.AlreadyProcessed(idempotencyID) {
+		log.Debugf("Action: Saving Game Top %d | Result: Already processed | IdempotencyID: %s", q.state.N, idempotencyID)
+		return nil, nil
+	}
 	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&schema.PlayedTime{}) {
-		return nil, q.Insert(p.(*schema.PlayedTime))
+		return nil, q.Insert(p.(*schema.PlayedTime), idempotencyID)
 	}
 	return nil, &schema.UnknownTypeError{}
 }

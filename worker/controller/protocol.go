@@ -20,19 +20,19 @@ func (p *NodeProtocol) Unmarshal(rawData []byte) (DataMessage, error) {
 	return common.MessageFromBytes(rawData)
 }
 
-func (p *NodeProtocol) Marshal(j common.JobID, d common.Serializable) (common.Serializable, error) {
+func (p *NodeProtocol) Marshal(j common.JobID, idemId *common.IdempotencyID, d common.Serializable) (common.Serializable, error) {
 	t := ProtocolMessage_Data
 	if IsEOF(d) {
 		t = ProtocolMessage_Control
 		log.Debug("Escribo un EOF")
-		return common.NewMessage(j, t, d.Serialize()), nil
+		return common.NewMessage(j, idemId, t, d.Serialize()), nil
 	}
 
 	data, err := schema.MarshalMessage(d)
 	if err != nil {
 		log.Fatalf("There was an error marshalling the message %s", err)
 	}
-	return common.NewMessage(j, t, data), nil
+	return common.NewMessage(j, idemId, t, data), nil
 }
 
 func (p *NodeProtocol) Route(partitionKey string) (routingKey string) {
