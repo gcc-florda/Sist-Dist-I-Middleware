@@ -25,7 +25,7 @@ func (s *IdempotencyStore) AlreadyProcessed(id *IdempotencyID) bool {
 	if !ok {
 		return false
 	}
-	return last.Sequence == id.Sequence
+	return last.Sequence >= id.Sequence
 }
 
 func (s *IdempotencyStore) LastForOrigin(og string) (*IdempotencyID, error) {

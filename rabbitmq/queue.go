@@ -47,7 +47,6 @@ func (q *Queue) Bind(exchange *Exchange, routingKey string) {
 }
 
 func (q *Queue) Consume() <-chan amqp.Delivery {
-
 	messages, err := q.Channel.Consume(
 		q.Name,
 		q.Name,
@@ -64,6 +63,7 @@ func (q *Queue) Consume() <-chan amqp.Delivery {
 		q.Channel.Cancel(q.Name, false)
 		log.Debugf("Action: Cancel queue connection | Queue: %s | Success: true", q.Name)
 	}()
+	q.Channel.Qos(2, 0, false)
 
 	common.FailOnError(err, "Failed to consume messages")
 

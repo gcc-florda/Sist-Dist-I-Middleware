@@ -50,27 +50,25 @@ func (t *TemporaryStorage) Close() {
 		return
 	}
 
-	err := t.file.Close()
-	if err != nil {
-		log.Errorf("Failed to close correctly the file %s: %s", t.filepath, err)
-	}
+	t.file.Close()
+	signal.Stop(t.term)
+	t.term <- syscall.SIGTERM
 	t.file = nil
 }
 
 func (t *TemporaryStorage) Delete() error {
 	t.Close()
-
 	err := os.Remove(t.filepath)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (t *TemporaryStorage) handleShutdown() {
 	<-t.term
 	t.Close()
+	close(t.term)
 }
 
 func (t *TemporaryStorage) Overwrite(data []byte) (int, error) {
