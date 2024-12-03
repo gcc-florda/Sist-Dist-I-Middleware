@@ -51,7 +51,10 @@ func (rm *ReplicaManager) Start() error {
 	wg.Add(1)
 	go rm.TalkNeighbour()
 
-	rm.StartElection()
+	for rm.coordinatorId == 0 {
+		rm.StartElection()
+		time.Sleep(5 * time.Second)
+	}
 
 	wg.Wait()
 
@@ -68,7 +71,7 @@ func (rm *ReplicaManager) InitNetwork() {
 
 		conn, err := rm.EstablishConnection(i)
 		if err != nil {
-			log.Errorf("Failed to establish connection with replica %d: %s", i, err)
+			log.Errorf("[COOR = %d] - Failed to establish connection with replica %d: %s", rm.coordinatorId, i, err)
 			continue
 		}
 		rm.neighbours[replicaPosition] = &ReplicaNeighbour{id: i, conn: conn}
@@ -81,10 +84,10 @@ func (rm *ReplicaManager) EstablishConnection(id int) (net.Conn, error) {
 	var err error
 
 	err = common.DoWithRetry(func() error {
-		log.Infof("Establishing connection with replica %d", id)
+		log.Infof("[COOR = %d] - Establishing connection with replica %d", rm.coordinatorId, id)
 		conn, err = net.Dial("tcp", fmt.Sprintf("manager_%d:%s", id, rm.port))
 		if err != nil {
-			log.Errorf("Failed to establish connection with replica %d: %s", id, err)
+			log.Errorf("[COOR = %d] - Failed to establish connection with replica %d: %s", rm.coordinatorId, id, err)
 			return err
 		}
 		return nil
@@ -96,7 +99,7 @@ func (rm *ReplicaManager) EstablishConnection(id int) (net.Conn, error) {
 func (rm *ReplicaManager) HealthCheck() {
 	for {
 		msg := NewRingMessage(HEALTHCHECK, "")
-		log.Infof("Pushing to channel: %s", msg.Serialize())
+		log.Infof("[COOR = %d] - Pushing to channel: %s", rm.coordinatorId, msg.Serialize())
 		rm.send <- msg
 		time.Sleep(10 * time.Second)
 	}
@@ -105,7 +108,7 @@ func (rm *ReplicaManager) HealthCheck() {
 func (rm *ReplicaManager) ReviveAndGetPostNeighbour(id int, reviver chan int) *ReplicaNeighbour {
 	go rm.Revive(id, reviver)
 	if id == rm.coordinatorId {
-		log.Criticalf("Coordinator replica %d is dead", id)
+		log.Criticalf("[COOR = %d] - Coordinator replica %d is dead", rm.coordinatorId, id)
 		rm.coordinatorId = 0
 		rm.StartElection()
 	}
@@ -125,23 +128,26 @@ mainloop:
 	for {
 		select {
 		case id := <-reviver:
-			log.Debugf("Reviver channel got revived replica = %d", id)
+			log.Debugf("[COOR = %d] - Reviver channel got revived replica = %d", rm.coordinatorId, id)
 			neigh = rm.GetNeighbour(id)
 			neigh.conn, err = rm.EstablishConnection(neigh.id)
 			if err != nil {
-				log.Criticalf("Failed to establish connection with replica %d after reviving: %s", neigh.id, err)
+				log.Criticalf("[COOR = %d] - Failed to establish connection with replica %d after reviving: %s", rm.coordinatorId, neigh.id, err)
 				continue mainloop
 			}
 		case msg := <-rm.send:
-			log.Infof("Pulling from channel: %s", msg.Serialize())
+			log.Infof("[COOR = %d] - Pulling from channel: %s", rm.coordinatorId, msg.Serialize())
 
 			err = common.DoWithRetry(func() error {
 				return common.Send(msg.Serialize(), neigh.conn)
 			}, 3)
 
 			if err != nil {
-				log.Criticalf("Error sending message to neighbour: %s, %s", msg.Serialize(), err)
+				log.Criticalf("[COOR = %d] - Error sending message to neighbour: %s, %s", rm.coordinatorId, msg.Serialize(), err)
 				neigh = rm.ReviveAndGetPostNeighbour(neigh.id, reviver)
+				if !msg.IsHealthCheck() {
+					rm.send <- msg
+				}
 				continue mainloop
 			}
 
@@ -149,20 +155,20 @@ mainloop:
 				recv, err := common.Receive(neigh.conn)
 
 				if err != nil {
-					log.Criticalf("Error receiving message from neighbour: %s", err)
+					log.Criticalf("[COOR = %d] - Error receiving message from neighbour: %s", rm.coordinatorId, err)
 					neigh = rm.ReviveAndGetPostNeighbour(neigh.id, reviver)
 					continue mainloop
 				}
 
 				replicaMessage, err := Deserialize(recv)
 				if err != nil {
-					log.Criticalf("Error deserializing message: %s", err)
+					log.Criticalf("[COOR = %d] - Error deserializing message: %s", rm.coordinatorId, err)
 					neigh = rm.ReviveAndGetPostNeighbour(neigh.id, reviver)
 					continue mainloop
 				}
 
 				if !replicaMessage.IsAlive() {
-					log.Criticalf("Expecting alive, got: %s", replicaMessage.Serialize())
+					log.Criticalf("[COOR = %d] - Expecting alive, got: %s", rm.coordinatorId, replicaMessage.Serialize())
 					neigh = rm.ReviveAndGetPostNeighbour(neigh.id, reviver)
 					continue mainloop
 				}
@@ -177,36 +183,36 @@ func (rm *ReplicaManager) Revive(id int, reviver chan int) error {
 	err := common.ReviveContainer(fmt.Sprintf("manager_%d", id), 5)
 
 	if err != nil {
-		log.Errorf("Failed to revive replica %d: %s", id, err)
+		log.Errorf("[COOR = %d] - Failed to revive replica %d: %s", rm.coordinatorId, id, err)
 		return err
 	}
 
 	reviver <- id
 
-	log.Infof("Replica %d revived", id)
+	log.Infof("[COOR = %d] - Replica %d revived", rm.coordinatorId, id)
 
 	return nil
 }
 
 func (rm *ReplicaManager) StartElection() {
 	msg := NewRingMessage(ELECTION, strconv.Itoa(rm.id))
-	log.Infof("Pushing to channel: %s", msg.Serialize())
+	log.Infof("[COOR = %d] - Pushing to channel: %s", rm.coordinatorId, msg.Serialize())
 	rm.send <- msg
 }
 
 func (rm *ReplicaManager) ListenNeighbours() error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", rm.port))
 	if err != nil {
-		log.Errorf("Failed to start listening on port %s: %s", rm.port, err)
+		log.Errorf("[COOR = %d] - Failed to start listening on port %s: %s", rm.coordinatorId, rm.port, err)
 		return err
 	}
 	defer listener.Close()
-	log.Infof("Listening on port %s", rm.port)
+	log.Infof("[COOR = %d] - Listening on port %s", rm.coordinatorId, rm.port)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Errorf("Failed to accept connection: %s", err)
+			log.Errorf("[COOR = %d] - Failed to accept connection: %s", rm.coordinatorId, err)
 			continue
 		}
 
@@ -219,14 +225,14 @@ func (rm *ReplicaManager) HandleNeighbour(conn net.Conn) {
 		message, err := common.Receive(conn)
 
 		if err != nil {
-			log.Criticalf("Error receiving pre neighbour message: %s", err)
+			log.Criticalf("[COOR = %d] - Error receiving pre neighbour message: %s", rm.coordinatorId, err)
 			return
 		}
 
 		replicaMessage, err := Deserialize(message)
 
 		if err != nil {
-			log.Criticalf("Error deserializing pre neighbour message: %s", err)
+			log.Criticalf("[COOR = %d] - Error deserializing pre neighbour message: %s", rm.coordinatorId, err)
 			continue
 		}
 
@@ -236,11 +242,11 @@ func (rm *ReplicaManager) HandleNeighbour(conn net.Conn) {
 			rm.ManageCoordinatorMessage(replicaMessage)
 		} else if replicaMessage.IsHealthCheck() {
 			if rm.ManageHealthCheckMessage(conn) != nil {
-				log.Criticalf("Error receiving pre neighbour alive message: %s", err)
+				log.Criticalf("[COOR = %d] - Error receiving pre neighbour alive message: %s", rm.coordinatorId, err)
 				return
 			}
 		} else {
-			log.Criticalf("Unknown pre neighbour message: %s", message)
+			log.Criticalf("[COOR = %d] - Unknown pre neighbour message: %s", rm.coordinatorId, message)
 		}
 	}
 }
@@ -249,11 +255,11 @@ func (rm *ReplicaManager) ManageElectionMessage(msg *RingMessage) {
 	if strings.Contains(msg.Content, strconv.Itoa(rm.id)) || rm.coordinatorId == rm.id {
 		rm.coordinatorId = rm.id
 		coordMessage := NewRingMessage(COORDINATOR, strconv.Itoa(rm.id))
-		log.Infof("Pushing to channel: %s", msg.Serialize())
+		log.Infof("[COOR = %d] - Pushing to channel: %s", rm.coordinatorId, msg.Serialize())
 		rm.send <- coordMessage
 	} else {
 		msg.Content = fmt.Sprintf("%s,%s", msg.Content, strconv.Itoa(rm.id))
-		log.Infof("Pushing to channel: %s", msg.Serialize())
+		log.Infof("[COOR = %d] - Pushing to channel: %s", rm.coordinatorId, msg.Serialize())
 		rm.send <- msg
 	}
 }
@@ -262,25 +268,25 @@ func (rm *ReplicaManager) ManageCoordinatorMessage(msg *RingMessage) error {
 	var err error
 	newCoord, err := strconv.Atoi(msg.Content)
 	if err != nil {
-		log.Errorf("Error parsing coordinator message: %s", err)
+		log.Errorf("[COOR = %d] - Error parsing coordinator message: %s", rm.coordinatorId, err)
 		return err
 	}
 
 	// If I am the coordinator and the new coordinator is the same as me, I ignore the message
 	if rm.coordinatorId == newCoord && rm.coordinatorId == rm.id {
-		log.Infof("Coordinator message closed the ring, ignore")
+		log.Infof("[COOR = %d] - Coordinator message closed the ring, ignore", rm.coordinatorId)
 		return nil
 	}
 
 	// if I am the coordinator and the new coordinator is smaller than me, I should not change
 	if rm.coordinatorId == rm.id && newCoord != rm.id && newCoord < rm.id {
-		log.Infof("Smaller replica %d wants to be coordinator, ignore", newCoord)
+		log.Infof("[COOR = %d] - Smaller replica %d wants to be coordinator, ignore", rm.coordinatorId, newCoord)
 		return nil
 	}
 
 	rm.coordinatorId = newCoord
 
-	log.Infof("Pushing to channel: %s", msg.Serialize())
+	log.Infof("[COOR = %d] - Pushing to channel: %s", rm.coordinatorId, msg.Serialize())
 	rm.send <- msg
 
 	return nil
@@ -293,7 +299,7 @@ func (rm *ReplicaManager) ManageHealthCheckMessage(conn net.Conn) error {
 		return common.Send(aliveMessage.Serialize(), conn)
 	}, 3)
 	if err != nil {
-		log.Errorf("Error sending alive message: %s", err)
+		log.Errorf("[COOR = %d] - Error sending alive message: %s", rm.coordinatorId, err)
 		return err
 	}
 
@@ -322,7 +328,7 @@ func (rm *ReplicaManager) GetPostNeighbour(id int) *ReplicaNeighbour {
 		}
 	}
 
-	log.Debugf("Post neighbour for %d is %d", id, postNeighId)
+	log.Debugf("[COOR = %d] - Post neighbour for %d is %d", rm.coordinatorId, id, postNeighId)
 
 	for _, neigh := range rm.neighbours {
 		if neigh.id == postNeighId {
