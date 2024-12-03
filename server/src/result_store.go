@@ -11,6 +11,7 @@ import (
 type QueryResultStore[T schema.ToCSV] struct {
 	Finished  bool
 	store     *common.TemporaryStorage
+	idemStore *common.IdempotencyStore
 	csvWriter *csv.Writer
 }
 
@@ -23,17 +24,22 @@ func NewQueryResultStore[T schema.ToCSV](id string, name string) (*QueryResultSt
 	if err != nil {
 		return nil, err
 	}
-	return &QueryResultStore[T]{store: s, csvWriter: csv.NewWriter(f)}, nil
+	return &QueryResultStore[T]{store: s, csvWriter: csv.NewWriter(f), idemStore: common.NewIdempotencyStore()}, nil
 }
 
-func (q *QueryResultStore[T]) AddResult(msg T) error {
+func (q *QueryResultStore[T]) AddResult(msg T, idemId *common.IdempotencyID) error {
+	if q.idemStore.AlreadyProcessed(idemId) {
+		log.Debugf("Result: %v Already Processed. IDEMID: %s", msg.ToCSV(), idemId.String())
+		return nil
+	}
 	defer q.csvWriter.Flush()
 
 	record := msg.ToCSV()
-	log.Debugf("Received %v", record)
+	log.Debugf("Received %v with IdemID %s", record, idemId.String())
 	if err := q.csvWriter.Write(record); err != nil {
 		return err
 	}
+	q.idemStore.Save(idemId)
 
 	return nil
 }

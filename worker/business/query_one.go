@@ -89,6 +89,10 @@ func (q *Q1) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 }
 
 func (q *Q1) Handle(protocolData []byte, idempotencyID *common.IdempotencyID) (*controller.NextStageMessage, error) {
+	if q.storage.AlreadyProcessed(idempotencyID) {
+		log.Debugf("Action: Counting Games OS | Result: Already processed | IdempotencyID: %s", idempotencyID)
+		return nil, nil
+	}
 	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		log.Debugf("Error marshalling Q1")

@@ -69,7 +69,7 @@ func eofReadState(h *common.IdempotencyHandlerSingleFile[*EOFMessage]) (map[enum
 }
 
 func NewEOFState(base string, id string) (*EOFState, error) {
-	s, err := common.NewIdempotencyHandlerSingleFile[*EOFMessage](filepath.Join(".", base, "eof_state", id, "eof.json"))
+	s, err := common.NewIdempotencyHandlerSingleFile[*EOFMessage](filepath.Join(".", base, "eof_state", id, "eof"))
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +84,9 @@ func NewEOFState(base string, id string) (*EOFState, error) {
 	}, nil
 }
 
-func (e *EOFState) Update(token enums.TokenName, idempotencyId *common.IdempotencyID) bool {
-	if e.storage.AlreadyProcessed(idempotencyId) {
+func (e *EOFState) Update(token enums.TokenName, idempotencyID *common.IdempotencyID) bool {
+	if e.storage.AlreadyProcessed(idempotencyID) {
+		log.Debugf("Action: Saving EOF %d| Result: Already processed | IdempotencyID: %s", token, idempotencyID)
 		return false
 	}
 	e.Received[token]++

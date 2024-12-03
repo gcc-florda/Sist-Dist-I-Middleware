@@ -16,7 +16,12 @@ func NewIdempotencyStore() *IdempotencyStore {
 
 func (s *IdempotencyStore) Save(id *IdempotencyID) {
 	og := id.Origin
+	prev, ok := s.last_id_per_og[og]
+	if ok && prev.Sequence > id.Sequence {
+		log.Criticalf("action: Store IdemId | result: warning_success | reason: The previous stored ID: %s is greater than the new one: %s", prev.String(), id.String())
+	}
 	s.last_id_per_og[og] = id
+
 }
 
 func (s *IdempotencyStore) AlreadyProcessed(id *IdempotencyID) bool {

@@ -289,7 +289,7 @@ func (s *Server) ConsumeResultsQ1() {
 			continue
 		}
 
-		s.QueryOne.AddResult(msg.(*schema.SOCounter))
+		s.QueryOne.AddResult(msg.(*schema.SOCounter), m.IdempotencyID)
 		delivery.Ack(false)
 	}
 }
@@ -332,7 +332,7 @@ func (s *Server) ConsumeResultsQ2() {
 			continue
 		}
 
-		s.QueryTwo.AddResult(msg.(*schema.PlayedTime))
+		s.QueryTwo.AddResult(msg.(*schema.PlayedTime), m.IdempotencyID)
 		delivery.Ack(false)
 	}
 }
@@ -375,7 +375,7 @@ func (s *Server) ConsumeResultsQ3() {
 			continue
 		}
 
-		s.QueryThree.AddResult(msg.(*schema.NamedReviewCounter))
+		s.QueryThree.AddResult(msg.(*schema.NamedReviewCounter), m.IdempotencyID)
 		delivery.Ack(false)
 	}
 }
@@ -418,7 +418,7 @@ func (s *Server) ConsumeResultsQ4() {
 			continue
 		}
 
-		s.QueryFour.AddResult(msg.(*schema.NamedReviewCounter))
+		s.QueryFour.AddResult(msg.(*schema.NamedReviewCounter), m.IdempotencyID)
 		delivery.Ack(false)
 	}
 }
@@ -461,7 +461,7 @@ func (s *Server) ConsumeResultsQ5() {
 			continue
 		}
 
-		s.QueryFive.AddResult(msg.(*schema.NamedReviewCounter))
+		s.QueryFive.AddResult(msg.(*schema.NamedReviewCounter), m.IdempotencyID)
 		delivery.Ack(false)
 	}
 }
