@@ -28,8 +28,7 @@ func GenerateRandomString(length int) string {
 }
 
 func ReviveContainer(name string, maxRetries int) error {
-	for i := 1; i <= maxRetries; i++ {
-
+	return DoWithRetry(func() error {
 		log.Debugf("Reviving container %s", name)
 
 		// Kill the container first
@@ -40,15 +39,7 @@ func ReviveContainer(name string, maxRetries int) error {
 
 		if err := stopCmd.Run(); err != nil {
 			log.Infof("DOCKER STOP | Error while stoping container %s: %v", name, err)
-
-			if i == maxRetries {
-				log.Errorf("DOCKER STOP | Max retries reached for container %s", name)
-				return err
-			}
-
-			time.Sleep(10 * time.Second)
-
-			continue
+			return err
 		} else {
 			log.Infof("DOCKER STOP | Container %s stopped", name)
 		}
@@ -61,15 +52,7 @@ func ReviveContainer(name string, maxRetries int) error {
 
 		if err := startCmd.Run(); err != nil {
 			log.Infof("DOCKER START | Error while starting container %s: %v", name, err)
-
-			if i == maxRetries {
-				log.Errorf("DOCKER START | Max retries reached for container %s", name)
-				return err
-			}
-
-			time.Sleep(10 * time.Second)
-
-			continue
+			return err
 		} else {
 			log.Infof("DOCKER START | Container %s started", name)
 		}
@@ -77,9 +60,7 @@ func ReviveContainer(name string, maxRetries int) error {
 		log.Debugf("Container revived: %s", name)
 
 		return nil
-	}
-
-	return nil
+	}, maxRetries)
 }
 
 func DoWithRetry(f func() error, maxRetries int) error {

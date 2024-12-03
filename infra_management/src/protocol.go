@@ -43,12 +43,10 @@ func (rm *RingMessage) IsAlive() bool {
 }
 
 func (rm *RingMessage) Serialize() string {
-	log.Debugf("Serializing message: %s|%s", rm.Type, rm.Content)
 	return fmt.Sprintf("%s|%s", rm.Type, rm.Content)
 }
 
 func Deserialize(message string) (*RingMessage, error) {
-	log.Debugf("Deserializing message: %s", message)
 	parts := strings.Split(message, "|")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("failed deserializing message: %s", message)

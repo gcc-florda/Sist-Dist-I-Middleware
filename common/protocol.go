@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"strings"
-	"time"
 )
 
 const (
@@ -114,6 +113,8 @@ func DeserializeClientMessage(message string) (ClientMessage, error) {
 }
 
 func Send(message string, conn net.Conn) error {
+	log.Infof("TCP SEND %s", message)
+
 	messageBytes := []byte(message)
 
 	buffer := new(bytes.Buffer)
@@ -147,25 +148,6 @@ func Send(message string, conn net.Conn) error {
 	return nil
 }
 
-func SendWithRetry(message string, conn net.Conn, retries int) error {
-	log.Debugf("Sending tcp message %s", message)
-	for i := 0; i < retries; i++ {
-		err := Send(message, conn)
-
-		if err == nil {
-			return nil
-		}
-
-		if i == retries-1 {
-			return err
-		}
-
-		time.Sleep(5 * time.Second)
-	}
-
-	return nil
-}
-
 func Receive(conn net.Conn) (string, error) {
 	lengthBuffer := make([]byte, 4)
 	_, err := io.ReadFull(conn, lengthBuffer)
@@ -184,6 +166,8 @@ func Receive(conn net.Conn) (string, error) {
 	}
 
 	messageString := strings.Trim(string(messageBytes), "\n")
+
+	log.Infof("TCP RECEIVE %s", messageString)
 
 	return messageString, nil
 }
