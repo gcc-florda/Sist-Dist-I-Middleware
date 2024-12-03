@@ -1,6 +1,6 @@
 package common
 
-func SaveState(caused_by IdempotencyID, state Serializable, storage *TemporaryStorage) error {
+func SaveState(caused_by *IdempotencyID, state Serializable, storage *TemporaryStorage) error {
 	s := NewSerializer()
 	b := s.WriteBytes(caused_by.Serialize()).WriteBytes(state.Serialize()).ToBytes()
 	_, err := storage.Append(b)
