@@ -18,6 +18,7 @@ type ReplicaManager struct {
 	port           string
 	send           chan *RingMessage
 	neighbours     []*ReplicaNeighbour
+	CoordNews      chan bool
 }
 
 type ReplicaNeighbour struct {
@@ -34,6 +35,7 @@ func NewReplicaManager(id int, replicasAmount int, ip string, port string) *Repl
 		port:           port,
 		send:           make(chan *RingMessage, 10),
 		neighbours:     make([]*ReplicaNeighbour, replicasAmount-1),
+		CoordNews:      make(chan bool, 2),
 	}
 }
 
@@ -257,6 +259,7 @@ func (rm *ReplicaManager) ManageElectionMessage(msg *RingMessage) {
 		coordMessage := NewRingMessage(COORDINATOR, strconv.Itoa(rm.id))
 		log.Infof("[COOR = %d] - Pushing to channel: %s", rm.coordinatorId, msg.Serialize())
 		rm.send <- coordMessage
+		rm.CoordNews <- true
 	} else {
 		msg.Content = fmt.Sprintf("%s,%s", msg.Content, strconv.Itoa(rm.id))
 		log.Infof("[COOR = %d] - Pushing to channel: %s", rm.coordinatorId, msg.Serialize())
@@ -278,10 +281,14 @@ func (rm *ReplicaManager) ManageCoordinatorMessage(msg *RingMessage) error {
 		return nil
 	}
 
-	// if I am the coordinator and the new coordinator is smaller than me, I should not change
 	if rm.coordinatorId == rm.id && newCoord != rm.id && newCoord < rm.id {
-		log.Infof("[COOR = %d] - Smaller replica %d wants to be coordinator, ignore", rm.coordinatorId, newCoord)
-		return nil
+		// if I am the coordinator and the new coordinator is smaller than me, I should not change
+		if newCoord < rm.id {
+			log.Infof("[COOR = %d] - Smaller replica %d wants to be coordinator, ignore", rm.coordinatorId, newCoord)
+			return nil
+		} else {
+			rm.CoordNews <- false
+		}
 	}
 
 	rm.coordinatorId = newCoord

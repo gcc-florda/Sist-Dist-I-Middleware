@@ -38,20 +38,42 @@ func (m *InfraManager) Start(workerPort string) error {
 		return err
 	}
 
-	// m.ListenForWorkers(workerPort)
+	for msg := range m.ReplicaManager.CoordNews {
+		if msg {
+			m.ListenForWorkers(workerPort)
+		} else {
+			log.Infof("I am no longer the coordinator")
+			m.StopHandleWorkers()
+		}
+	}
 
 	return nil
 }
 
 func (m *InfraManager) ListenForWorkers(workerPort string) {
 	for _, worker := range m.WorkersManager.Workers {
-		log.Debugf("Establishing connection with worker %s", worker.Name)
-		worker.Listener = workerPort
-		worker.EstablishConnection()
+		select {
+		case msg := <-m.ReplicaManager.CoordNews:
+			if !msg {
+				log.Infof("I am no longer the coordinator")
+				m.StopHandleWorkers()
+				return
+			}
+		default:
+			log.Debugf("Establishing connection with worker %s", worker.Name)
+			worker.Listener = workerPort
+			worker.EstablishConnection()
 
-		log.Debugf("Handling worker %s", worker.Name)
-		go worker.Handle()
-		log.Debugf("Finish handling worker %s", worker.Name)
+			log.Debugf("Handling worker %s", worker.Name)
+			go worker.Handle()
+			log.Debugf("Finish handling worker %s", worker.Name)
+		}
+	}
+}
+
+func (m *InfraManager) StopHandleWorkers() {
+	for _, worker := range m.WorkersManager.Workers {
+		worker.CoordNews <- false
 	}
 }
 
