@@ -1,65 +1,47 @@
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672" # AMQP port
-      - "15672:15672" # Admin interface
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 5s
-      timeout: 10s
-      retries: 5
-
-  client_1:
+  manager_1:
     build:
       context: .
-      dockerfile: ./client/Dockerfile
-    depends_on:
-      - server
+      dockerfile: ./infra_management/Dockerfile
+    container_name: manager_1
+    environment:
+      - MANAGER_ID=1
     volumes:
-      - ./datasets:/app/datasets
-      - ./client/config.yaml:/app/config.yaml
-
-  # client_2:
-  #   build:
-  #     context: .
-  #     dockerfile: ./client/Dockerfile
-  #   depends_on:
-  #     - server
-  #   volumes:
-  #     - ./datasets:/app/datasets
-  #     - ./client/config.yaml:/app/config.yaml
-
-  server:
-    build:
-      context: .
-      dockerfile: ./server/Dockerfile
-    ports:
-      - "12345:12345"
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    links:
-      - rabbitmq
-    volumes:
-      - ./server/config.yaml:/app/config.yaml
+      - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
-
-  worker:
+      - /var/run/docker.sock:/var/run/docker.sock
+  manager_2:
     build:
       context: .
-      dockerfile: ./worker/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    links:
-      - rabbitmq
+      dockerfile: ./infra_management/Dockerfile
+    container_name: manager_2
+    environment:
+      - MANAGER_ID=2
     volumes:
+      - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
-      - ./worker/common.yaml:/app/common.yaml
-      - ./worker/controllers.yaml:/app/controllers.yaml
-
+      - /var/run/docker.sock:/var/run/docker.sock
+  manager_3:
+    build:
+      context: .
+      dockerfile: ./infra_management/Dockerfile
+    container_name: manager_3
+    environment:
+      - MANAGER_ID=3
+    volumes:
+      - ./infra_management/config.yaml:/app/config.yaml
+      - ./architecture.yaml:/app/architecture.yaml
+      - /var/run/docker.sock:/var/run/docker.sock
+  manager_4:
+    build:
+      context: .
+      dockerfile: ./infra_management/Dockerfile
+    container_name: manager_4
+    environment:
+      - MANAGER_ID=4
+    volumes:
+      - ./infra_management/config.yaml:/app/config.yaml
+      - ./architecture.yaml:/app/architecture.yaml
+      - /var/run/docker.sock:/var/run/docker.sock
 volumes:
   rabbitmq_data:

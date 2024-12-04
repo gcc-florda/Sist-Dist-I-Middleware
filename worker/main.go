@@ -9,7 +9,7 @@ import (
 	"github.com/op/go-logging"
 )
 
-type ControllerFactory func(cfg *ControllerConfig, arcCfg *rabbitmq.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller
+type ControllerFactory func(cfg *ControllerConfig, arcCfg *common.ArchitectureConfig, arc *rabbitmq.Architecture) *controller.Controller
 
 var log = logging.MustGetLogger("log")
 
@@ -38,7 +38,7 @@ func main() {
 	if err := common.InitLogger("DEBUG"); err != nil {
 		log.Criticalf("%s", err)
 	}
-	var arcCfg = rabbitmq.LoadConfig("./architecture.yaml")
+	var arcCfg = common.LoadArchitectureConfig("./architecture.yaml")
 	var arc = rabbitmq.CreateArchitecture(arcCfg)
 	defer arc.Close()
 	var _, err = common.InitConfig("./common.yaml")

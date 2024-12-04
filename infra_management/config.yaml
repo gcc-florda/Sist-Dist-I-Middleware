@@ -1,0 +1,8 @@
+ring:
+  ip: "manager"
+  port: 8082
+  replicasAmount: 4
+worker:
+  port: 8083
+log:
+  level: "DEBUG"

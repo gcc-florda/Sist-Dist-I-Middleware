@@ -113,6 +113,8 @@ func DeserializeClientMessage(message string) (ClientMessage, error) {
 }
 
 func Send(message string, conn net.Conn) error {
+	log.Infof("TCP SEND %s", message)
+
 	messageBytes := []byte(message)
 
 	buffer := new(bytes.Buffer)
@@ -136,7 +138,10 @@ func Send(message string, conn net.Conn) error {
 
 	for bytesSent < messageLength {
 		n, err := conn.Write(buffer.Bytes())
-		FailOnError(err, "Failed to send bytes to server")
+		if err != nil {
+			log.Errorf("Failed to send bytes to %s: %s", conn.LocalAddr().String(), err)
+			return err
+		}
 		bytesSent += n
 	}
 
@@ -162,6 +167,8 @@ func Receive(conn net.Conn) (string, error) {
 
 	messageString := strings.Trim(string(messageBytes), "\n")
 
+	log.Infof("TCP RECEIVE %s", messageString)
+
 	return messageString, nil
 }
 
@@ -175,4 +182,20 @@ func GetRoutingKey(line string) string {
 	}
 
 	panic("ni idea man")
+}
+
+type ManagementMessage struct {
+	Content string
+}
+
+func (mm ManagementMessage) IsName() bool {
+	return !mm.IsAlive() && !mm.IsHealthCheck()
+}
+
+func (mm ManagementMessage) IsAlive() bool {
+	return mm.Content == "ALV"
+}
+
+func (mm ManagementMessage) IsHealthCheck() bool {
+	return mm.Content == "HCK"
 }
