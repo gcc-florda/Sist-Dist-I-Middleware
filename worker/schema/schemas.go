@@ -13,8 +13,6 @@ import (
 
 var log = logging.MustGetLogger("log")
 
-const maxBatchSize = 34 * 1024 * 1024
-
 type ToCSV interface {
 	ToCSV() []string
 }
@@ -112,6 +110,13 @@ func SOCounterDeserialize(d *common.Deserializer) (*SOCounter, error) {
 		Linux:   linux,
 		Mac:     mac,
 	}, nil
+}
+
+func SOCounterAggregate(old *SOCounter, new *SOCounter) *SOCounter {
+	old.Windows += new.Windows
+	old.Linux += new.Linux
+	old.Mac += new.Mac
+	return old
 }
 
 type PlayedTime struct {
@@ -272,32 +277,6 @@ func NamedReviewCounterDeserialize(d *common.Deserializer) (*NamedReviewCounter,
 		Name:  n,
 		Count: c,
 	}, nil
-}
-
-type NamedReviewBatch struct {
-	Reviews []*NamedReviewCounter
-	Size    int
-	Weight  int
-	Index   int
-}
-
-func NewNamedReviewBatch(base string, jobId string, index int) *NamedReviewBatch {
-	return &NamedReviewBatch{
-		Reviews: []*NamedReviewCounter{},
-		Size:    0,
-		Weight:  0,
-		Index:   index,
-	}
-}
-
-func (b *NamedReviewBatch) CanHandle(r *NamedReviewCounter) bool {
-	return b.Weight+len(r.Serialize()) < maxBatchSize
-}
-
-func (b *NamedReviewBatch) Add(r *NamedReviewCounter) {
-	b.Reviews = append(b.Reviews, r)
-	b.Size++
-	b.Weight += len(r.Serialize())
 }
 
 func StrParse[T any](s string) (*T, error) {

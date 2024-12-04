@@ -5,6 +5,7 @@ import (
 	"middleware/common"
 	"middleware/worker/business"
 	"middleware/worker/schema"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -17,8 +18,8 @@ func FatalOnError(err error, t *testing.T, message string) {
 	}
 }
 
-func CreateRandomBatch(n int, idx int) *schema.NamedReviewBatch {
-	batch := schema.NewNamedReviewBatch("temp", "99", idx)
+func CreateRandomBatch(name string, n int, idx int) (*business.SortedBatch[*schema.NamedReviewCounter], error) {
+	batch := business.NewSortedBatch[*schema.NamedReviewCounter](34*1024*1024, name)
 
 	for i := 0; i < n; i++ {
 		count := uint32(rand.Intn(1000))
@@ -28,34 +29,9 @@ func CreateRandomBatch(n int, idx int) *schema.NamedReviewBatch {
 		})
 	}
 
-	return batch
-}
-
-func CreateRandomBatchSorted(n int, idx int) (*schema.NamedReviewBatch, *common.TemporaryStorage, error) {
-	batch := schema.NewNamedReviewBatch("temp", "99", idx)
-
-	for i := 0; i < n; i++ {
-		count := uint32(rand.Intn(1000))
-		batch.Add(&schema.NamedReviewCounter{
-			Name:  fmt.Sprintf("[%d] - Game N° %d - %d", idx, i, count),
-			Count: count,
-		})
-	}
-
-	file, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", "temp", fmt.Sprintf("batch_%d", batch.Index)))
-	if err != nil {
-		return nil, nil, err
-	}
-	file.Overwrite([]byte{})
-
-	err = business.Q5PartialSort(batch, file)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	file.Reset()
-
-	return batch, file, nil
+	return batch, batch.Save(func(nrc1, nrc2 *schema.NamedReviewCounter) bool {
+		return nrc1.Count < nrc2.Count
+	})
 }
 
 func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
@@ -84,34 +60,27 @@ func CheckSortedFile(t *testing.T, file *common.TemporaryStorage) {
 
 	t.Log("File sorted correctly")
 }
-func TestQ5Insert(t *testing.T) {
-	q5, err := business.NewQ5("temp", "99", 1, 90, 10)
-	FatalOnError(err, t, "Cannot create Q5")
 
-	q5.Storage.Overwrite([]byte{})
+func init() {
+	os.RemoveAll(filepath.Join(".", "test_files"))
+}
+func TestQ5Insert(t *testing.T) {
+	q5, err := business.NewQ5("test_files", "99", 1, 90, 10)
+	FatalOnError(err, t, "Cannot create Q5")
 
 	game := schema.NamedReviewCounter{
 		Name:  "Game N° 1!",
 		Count: 1,
 	}
 
-	q5.Insert(&game)
+	q5.Insert(&game, &common.IdempotencyID{Origin: "A", Sequence: 1})
 
-	scanner, err := q5.Storage.ScannerDeserialize(func(d *common.Deserializer) error {
-		_, err := schema.NamedReviewCounterDeserialize(d)
-		return err
-	})
+	nrcs, err := q5.Storage.ReadState(schema.NamedReviewCounterDeserialize)
 	FatalOnError(err, t, "Cannot create scanner")
 
-	for scanner.Scan() {
-		line := scanner.Bytes()
-
-		d := common.NewDeserializer(line)
-		lineDes, err := schema.NamedReviewCounterDeserialize(&d)
-		FatalOnError(err, t, "Cannot deserialize review")
-
-		if lineDes.Name != game.Name || lineDes.Count != game.Count {
-			t.Fatalf("Expected %v, got %v", game, lineDes)
+	for nrc := range nrcs {
+		if nrc.Name != game.Name || nrc.Count != game.Count {
+			t.Fatalf("Expected %v, got %v", game, nrc)
 		} else {
 			t.Log("Game inserted correctly")
 		}
@@ -129,14 +98,11 @@ func TestQ5CalculatePi(t *testing.T) {
 }
 
 func TestQ5PartialSort(t *testing.T) {
-	batch := CreateRandomBatch(100, 0)
+	batch, err := CreateRandomBatch(filepath.Join(".", "test_files", "q5_partial_sort", "batch_100elems"), 100, 0)
+	FatalOnError(err, t, "Cannot create random batch")
 
-	tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+	tempFile, err := common.NewTemporaryStorage(batch.SaveTo)
 	FatalOnError(err, t, "Cannot create temporary storage")
-	tempFile.Overwrite([]byte{})
-
-	err = business.Q5PartialSort(batch, tempFile)
-	FatalOnError(err, t, "Cannot sort batch")
 
 	CheckSortedFile(t, tempFile)
 }
@@ -144,16 +110,11 @@ func TestQ5PartialSort(t *testing.T) {
 func TestQ5PushAtIdx1Row(t *testing.T) {
 	h := business.NewHeap()
 
-	batch := CreateRandomBatch(100, 0)
+	batch, err := CreateRandomBatch(filepath.Join(".", "test_files", "q5_partial_sort", "batch_1000elems"), 1000, 0)
+	FatalOnError(err, t, "Cannot create random batch")
 
-	tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+	tempFile, err := common.NewTemporaryStorage(batch.SaveTo)
 	FatalOnError(err, t, "Cannot create temporary storage")
-	tempFile.Overwrite([]byte{})
-
-	err = business.Q5PartialSort(batch, tempFile)
-	FatalOnError(err, t, "Cannot sort batch")
-
-	tempFile.Reset()
 
 	reader, err := tempFile.ScannerDeserialize(func(d *common.Deserializer) error {
 		_, err := schema.NamedReviewCounterDeserialize(d)
@@ -189,22 +150,21 @@ func TestQ5MergeSort(t *testing.T) {
 	tempSortedFiles := []*common.TemporaryStorage{}
 
 	for i := 0; i < 10; i++ {
-		batch := CreateRandomBatch(100000, i)
+		batch, err := CreateRandomBatch(
+			filepath.Join(".", "test_files", "q5_merge_sort", fmt.Sprintf("batch_%d", i)),
+			1000,
+			i)
+		FatalOnError(err, t, "Cannot create temporary storage")
 		reviewsLen += batch.Size
 
-		tempFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", fmt.Sprintf("batch_%d", batch.Index)))
+		tempFile, err := common.NewTemporaryStorage(batch.SaveTo)
 		FatalOnError(err, t, "Cannot create temporary storage")
-		tempFile.Overwrite([]byte{})
-
-		err = business.Q5PartialSort(batch, tempFile)
-		FatalOnError(err, t, "Cannot sort batch")
 
 		tempSortedFiles = append(tempSortedFiles, tempFile)
 	}
 
-	sortedFile, err := common.NewTemporaryStorage(filepath.Join(".", "temp", "query_five", "99", "merge_sort"))
+	sortedFile, err := common.NewTemporaryStorage(filepath.Join(".", "test_files", "q5_merge_sort", "result.sorted"))
 	FatalOnError(err, t, "Cannot create temporary storage")
-	sortedFile.Overwrite([]byte{})
 
 	reviewsLenResult, err := business.Q5MergeSort(sortedFile, tempSortedFiles)
 	FatalOnError(err, t, "Cannot merge batches")
@@ -219,15 +179,16 @@ func TestQ5MergeSort(t *testing.T) {
 }
 
 func TestQ5CalculateP90(t *testing.T) {
-	q5, err := business.NewQ5("temp", "99", 1, 90, 10)
+	q5, err := business.NewQ5("test_files", "99", 1, 90, 10)
 	FatalOnError(err, t, "Cannot create Q5")
-
-	q5.Storage.Overwrite([]byte{})
 
 	for i := 100; i > 0; i-- {
 		q5.Insert(&schema.NamedReviewCounter{
 			Name:  fmt.Sprintf("Game N° %d", i),
 			Count: uint32(i),
+		}, &common.IdempotencyID{
+			Origin:   "A",
+			Sequence: uint32(10000 - i + 1),
 		})
 	}
 
@@ -238,5 +199,52 @@ func TestQ5CalculateP90(t *testing.T) {
 		t.Fatalf("Expected index 90, got %d", idx)
 	} else {
 		t.Log("P90 calculated correctly")
+	}
+}
+
+func TestQ5CorrectResults(t *testing.T) {
+	q5, err := business.NewQ5("test_files", "99", 1, 90, 10)
+	FatalOnError(err, t, "Cannot create Q5")
+
+	ga := 100
+	fromExpected := business.Q5CalculatePi(ga, 90)
+	for i := ga; i > 0; i-- {
+		q5.Insert(&schema.NamedReviewCounter{
+			Name:  fmt.Sprintf("Game N° %d", i),
+			Count: uint32(i),
+		}, &common.IdempotencyID{
+			Origin:   "A",
+			Sequence: uint32(ga - i + 1),
+		})
+	}
+
+	cr, ce := q5.NextStage()
+	j := fromExpected + 1
+	for {
+		select {
+		case r, ok := <-cr:
+			if !ok {
+				break
+			}
+			if r.Message == nil {
+				return
+			}
+			d := common.NewDeserializer(r.Message.Serialize())
+			m, err := schema.NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				t.Fatalf("There was an error while deserializing a join result %s", err)
+			}
+
+			if m.Name != fmt.Sprintf("Game N° %d", j) {
+				t.Fatalf("Game %s Reviews Expected: %d Got: %d", m.Name, j, m.Count)
+			}
+			j++
+
+		case err, ok := <-ce:
+			if err == nil && !ok {
+				continue
+			}
+			t.Fatalf("There was an error while making the next stage %s", err)
+		}
 	}
 }

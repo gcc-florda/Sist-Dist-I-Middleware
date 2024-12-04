@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"middleware/common"
 	"middleware/worker/controller/enums"
@@ -57,62 +56,48 @@ func EOFMessageDeserialize(d *common.Deserializer) (*EOFMessage, error) {
 
 type EOFState struct {
 	Received map[enums.TokenName]uint
-	storage  *common.TemporaryStorage
+	storage  *common.IdempotencyHandlerSingleFile[*EOFMessage]
+}
+
+func eofReadState(h *common.IdempotencyHandlerSingleFile[*EOFMessage]) (map[enums.TokenName]uint, error) {
+	m := make(map[enums.TokenName]uint)
+	_, err := h.LoadSequentialState(EOFMessageDeserialize, func(e1, e2 *EOFMessage) *EOFMessage {
+		m[e2.TokenName]++
+		return e2
+	}, nil)
+	return m, err
 }
 
 func NewEOFState(base string, id string) (*EOFState, error) {
-	state := &EOFState{
-		Received: make(map[enums.TokenName]uint),
-	}
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, "eof_state", id, "eof.json"))
+	s, err := common.NewIdempotencyHandlerSingleFile[*EOFMessage](filepath.Join(".", base, "eof_state", id, "eof.json"))
 	if err != nil {
 		return nil, err
 	}
 
-	b, err := s.ReadAll()
+	b, err := eofReadState(s)
 	if err != nil {
 		return nil, err
 	}
-
-	state.storage = s
-
-	if len(b) == 0 {
-		return state, nil
-	}
-
-	err = json.Unmarshal(b, &state.Received)
-	if err != nil {
-		return nil, err
-	}
-
-	return state, nil
+	return &EOFState{
+		Received: b,
+		storage:  s,
+	}, nil
 }
 
-func (e *EOFState) Update(token enums.TokenName) error {
+func (e *EOFState) Update(token enums.TokenName, idempotencyId *common.IdempotencyID) bool {
+	if e.storage.AlreadyProcessed(idempotencyId) {
+		return false
+	}
 	e.Received[token]++
-	return e.saveState()
+	return true
 }
 
 func (e *EOFState) Read(token enums.TokenName) uint {
 	return e.Received[token]
 }
 
-func (e *EOFState) saveState() error {
-	data, err := json.Marshal(e.Received)
-	if err != nil {
-		log.Errorf("Action: Marshalling EOFS | Result: Error | Error: %s", err)
-		return err
-	}
-
-	_, err = e.storage.Overwrite(data)
-	if err != nil {
-		log.Errorf("Action: Saving EOFS | Data: %s | Result: Error | Error: %s", data, err)
-		return err
-	}
-
-	log.Debugf("Action: EOF Writing | Data: %s", data)
-
-	return nil
+func (e *EOFState) SaveState(token enums.TokenName, idempotencyId *common.IdempotencyID) error {
+	return e.storage.SaveState(idempotencyId, &EOFMessage{TokenName: token})
 }
 
 type EOFChecker struct {

@@ -3,6 +3,7 @@ package business
 import (
 	"fmt"
 	"middleware/common"
+	"middleware/worker/controller"
 	"middleware/worker/schema"
 	"path/filepath"
 	"reflect"
@@ -43,12 +44,22 @@ type Q4State struct {
 }
 
 type Q4 struct {
-	state   *Q4State
-	storage *common.TemporaryStorage
+	state     *Q4State
+	storage   *common.IdempotencyHandlerSingleFile[*schema.NamedReviewCounter]
+	basefiles string
 }
 
 func NewQ4(base string, id string, partition int, over int, bufSize int) (*Q4, error) {
-	s, err := common.NewTemporaryStorage(filepath.Join(".", base, fmt.Sprintf("query_four_%d", partition), id, "results"))
+	basefiles := filepath.Join(".", base, fmt.Sprintf("query_four_%d", partition), id)
+
+	s, err := common.NewIdempotencyHandlerSingleFile[*schema.NamedReviewCounter](
+		filepath.Join(basefiles, "results"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.LoadOverwriteState(schema.NamedReviewCounterDeserialize)
+
 	if err != nil {
 		return nil, err
 	}
@@ -58,13 +69,16 @@ func NewQ4(base string, id string, partition int, over int, bufSize int) (*Q4, e
 			Over:    uint32(over),
 			bufSize: bufSize,
 		},
-		storage: s,
+		storage:   s,
+		basefiles: basefiles,
 	}, nil
 }
 
-func (q *Q4) Insert(rc *schema.NamedReviewCounter) error {
+func (q *Q4) Insert(rc *schema.NamedReviewCounter, idempotencyID *common.IdempotencyID) error {
 	if rc.Count > uint32(q.state.Over) {
-		_, err := q.storage.Append(rc.Serialize())
+		// TODO: We are not really storing these IDs, but do we really care?
+		// They are not modifying state, so they can come as much as they want.
+		err := q.storage.SaveState(idempotencyID, rc)
 		if err != nil {
 			return err
 		}
@@ -72,53 +86,60 @@ func (q *Q4) Insert(rc *schema.NamedReviewCounter) error {
 	return nil
 }
 
-func (q *Q4) NextStage() (<-chan schema.Partitionable, <-chan error) {
-	cr := make(chan schema.Partitionable, q.state.bufSize)
+func (q *Q4) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
+	cr := make(chan *controller.NextStageMessage, q.state.bufSize)
 	ce := make(chan error, 1)
 
 	go func() {
 		defer close(cr)
 		defer close(ce)
 
-		q.storage.Reset()
-
-		s, err := q.storage.ScannerDeserialize(func(d *common.Deserializer) error {
-			_, err := schema.NamedReviewCounterDeserialize(d)
-			return err
-		})
+		s, err := q.storage.ReadState(schema.NamedReviewCounterDeserialize)
 		if err != nil {
 			ce <- err
 			return
 		}
 
-		for s.Scan() {
-			b := s.Bytes()
-			d := common.NewDeserializer(b)
-			nrc, err := schema.NamedReviewCounterDeserialize(&d)
-			if err != nil {
-				ce <- err
-				return
-			}
-
-			cr <- nrc
-		}
-
-		if err := s.Err(); err != nil {
+		fs, err := NewFileSequence(filepath.Join(q.basefiles, "sent_lines"))
+		if err != nil {
 			ce <- err
 			return
+		}
+		var line uint32 = 1
+		for rc := range s {
+			if line < fs.LastConfirmedSent() {
+				continue
+			}
+			cr <- &controller.NextStageMessage{
+				Message:      rc,
+				Sequence:     line,
+				SentCallback: fs.Sent,
+			}
+			line++
+		}
+
+		cr <- &controller.NextStageMessage{
+			Message:      nil,
+			Sequence:     line + 1,
+			SentCallback: nil,
 		}
 	}()
 
 	return cr, ce
 }
 
-func (q *Q4) Handle(protocolData []byte) (schema.Partitionable, error) {
+func (q *Q4) Handle(protocolData []byte, idempotencyID *common.IdempotencyID) (*controller.NextStageMessage, error) {
+	if q.storage.AlreadyProcessed(idempotencyID) {
+		log.Debugf("Action: Saving Game Over %d | Result: Already processed | IdempotencyID: %s", q.state.Over, idempotencyID)
+		return nil, nil
+	}
+
 	p, err := schema.UnmarshalMessage(protocolData)
 	if err != nil {
 		return nil, err
 	}
 	if reflect.TypeOf(p) == reflect.TypeOf(&schema.NamedReviewCounter{}) {
-		return nil, q.Insert(p.(*schema.NamedReviewCounter))
+		return nil, q.Insert(p.(*schema.NamedReviewCounter), idempotencyID)
 	}
 	return nil, &schema.UnknownTypeError{}
 }

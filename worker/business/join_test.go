@@ -1,192 +1,152 @@
 package business_test
 
 import (
-	"bufio"
+	"fmt"
+	"math/rand"
 	"middleware/common"
 	"middleware/worker/business"
 	"middleware/worker/schema"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
-var gtp = filepath.Join(".", "test_files", "test_1", "join", "1", "game.results")
-var rtp = filepath.Join(".", "test_files", "test_1", "join", "1", "review.results")
-
-func deleteFiles() {
-	os.Remove(gtp)
-	os.Remove(rtp)
+func init() {
+	os.RemoveAll(filepath.Join(".", "test_files"))
 }
 
-func recreateFiles() {
-
-	deleteFiles()
-
-	gts, err := common.NewTemporaryStorage(gtp)
-
+func TestJoinSameOrigins(t *testing.T) {
+	ga := 10
+	ra := 10
+	h, err := business.NewJoin(filepath.Join(".", "test_files", "so"), "qtest", "id", 1, 100)
 	if err != nil {
-		panic("Error creating files")
-	}
-	gts.Append((&schema.GameName{
-		AppID: "1",
-		Name:  "Test_1",
-	}).Serialize())
-
-	gts.Append((&schema.GameName{
-		AppID: "3",
-		Name:  "Test_3",
-	}).Serialize())
-
-	gts.Append((&schema.GameName{
-		AppID: "4",
-		Name:  "Test_4",
-	}).Serialize())
-
-	gts.Close()
-
-	rts, err := common.NewTemporaryStorage(rtp)
-	if err != nil {
-		panic("Error creating files")
-	}
-	rts.Append((&schema.ReviewCounter{
-		AppID: "1",
-		Count: 5,
-	}).Serialize())
-
-	rts.Append((&schema.ReviewCounter{
-		AppID: "2",
-		Count: 50,
-	}).Serialize())
-
-	rts.Append((&schema.ReviewCounter{
-		AppID: "3",
-		Count: 55,
-	}).Serialize())
-
-	rts.Append((&schema.ReviewCounter{
-		AppID: "4",
-		Count: 500,
-	}).Serialize())
-
-	rts.Close()
-}
-
-func TestJoinOutput(t *testing.T) {
-	recreateFiles()
-	j, err := business.NewJoin("test_files", "test", "1", 1, 1)
-	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Cant create join: %s", err)
 	}
 
-	expected := map[string]uint32{
-		"Test_1": 5,
-		"Test_3": 55,
-		"Test_4": 500,
+	for i := 0; i < ga; i++ {
+		h.AddGame(&schema.GameName{
+			AppID: fmt.Sprint(i),
+			Name:  fmt.Sprint(i),
+		}, &common.IdempotencyID{
+			Origin:   "AG",
+			Sequence: uint32(i),
+		})
 	}
 
-	cr, ce := j.NextStage()
+	ri := 0
+	for j := 0; j < ga; j++ {
+		for i := ra - j; i > 0; i-- {
+			h.AddReview(&schema.ValidReview{AppID: fmt.Sprint(j)}, &common.IdempotencyID{
+				Origin:   "AR",
+				Sequence: uint32(ri),
+			})
+			ri++
+		}
 
-loop:
+	}
+	cr, ce := h.NextStage()
+
 	for {
 		select {
-		case msg, ok := <-cr:
-			if !ok {
-				break loop
-			}
-
-			v, ok := expected[msg.(*schema.NamedReviewCounter).Name]
-			if !ok || v != msg.(*schema.NamedReviewCounter).Count {
-				t.Fatal("Unknown")
-			}
-		case msg, ok := <-ce:
+		case r, ok := <-cr:
 			if !ok {
 				break
 			}
-			t.Fatal(msg)
+			if r.Message == nil {
+				return
+			}
+			d := common.NewDeserializer(r.Message.Serialize())
+			m, err := schema.NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				t.Fatalf("There was an error while deserializing a join result %s", err)
+			}
+
+			nc, err := strconv.Atoi(m.Name)
+			if err != nil {
+				t.Fatalf("There was an error while deserializing a join result %s", err)
+			}
+
+			if int(m.Count) != ga-nc {
+				t.Fatalf("Game %s with count %d", m.Name, m.Count)
+			}
+			if r.SentCallback != nil {
+				r.SentCallback()
+			}
+
+		case err, ok := <-ce:
+			if err == nil && !ok {
+				continue
+			}
+			t.Fatalf("There was an error while making the next stage %s", err)
 		}
 	}
 }
 
-func TestJoinAddReview(t *testing.T) {
-	deleteFiles()
-	j, err := business.NewJoin("test_files", "test", "1", 1, 1)
+func TestJoinMultipleOrigins(t *testing.T) {
+	r := rand.New(rand.NewSource(0))
+	ga := 10
+	ra := 10
+	h, err := business.NewJoin(filepath.Join(".", "test_files", "mo"), "qtest", "id", 1, 100)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Cant create join: %s", err)
 	}
 
-	expected_1 := 6
-	expected_2 := 3
-	expected_3 := 5
-
-	for i := 0; i < 3; i++ {
-		j.AddReview(&schema.ValidReview{
-			AppID: "1",
+	for i := 0; i < ga; i++ {
+		h.AddGame(&schema.GameName{
+			AppID: fmt.Sprint(i),
+			Name:  fmt.Sprint(i),
+		}, &common.IdempotencyID{
+			Origin:   fmt.Sprintf("AG%d", r.Int()),
+			Sequence: uint32(i),
 		})
 	}
 
-	for i := 0; i < 2; i++ {
-		j.AddReview(&schema.ValidReview{
-			AppID: "2",
-		})
-	}
-
-	for i := 0; i < 3; i++ {
-		j.AddReview(&schema.ValidReview{
-			AppID: "3",
-		})
-	}
-
-	for i := 0; i < 3; i++ {
-		j.AddReview(&schema.ValidReview{
-			AppID: "1",
-		})
-	}
-
-	for i := 0; i < 1; i++ {
-		j.AddReview(&schema.ValidReview{
-			AppID: "2",
-		})
-	}
-
-	for i := 0; i < 2; i++ {
-		j.AddReview(&schema.ValidReview{
-			AppID: "3",
-		})
-	}
-
-	f, _ := os.Open(rtp)
-	s := bufio.NewScanner(f)
-	s.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		raw := data
-		if atEOF && len(data) == 0 {
-			return 0, nil, nil
+	ri := 0
+	for j := 0; j < ga; j++ {
+		for i := ra - j; i > 0; i-- {
+			h.AddReview(&schema.ValidReview{AppID: fmt.Sprint(j)}, &common.IdempotencyID{
+				Origin:   fmt.Sprintf("AR%d", r.Int()),
+				Sequence: uint32(ri),
+			})
+			ri++
 		}
 
-		d := common.NewDeserializer(data)
-		_, err = schema.ReviewCounterDeserialize(&d)
-		if err != nil {
-			return 0, nil, nil
-		}
-		l := len(raw) - d.Buf.Len()
-		return l, raw[:l], nil
-	})
-	s.Buffer(make([]byte, 0, 12), 12)
-	i := 0
-	for s.Scan() {
-		b := s.Bytes()
-		d := common.NewDeserializer(b)
-		r, _ := schema.ReviewCounterDeserialize(&d)
-
-		if r.AppID == "1" && expected_1 != int(r.Count) {
-			t.Fatalf("Wrong Count")
-		} else if r.AppID == "2" && expected_2 != int(r.Count) {
-			t.Fatalf("Wrong Count")
-		} else if r.AppID == "3" && expected_3 != int(r.Count) {
-			t.Fatalf("Wrong Count")
-		}
-		i++
 	}
-	if i != 3 {
-		t.Fatal("Wrong amount of records")
+	cr, ce := h.NextStage()
+
+	for {
+		select {
+		case r, ok := <-cr:
+			if !ok {
+				break
+			}
+			if r.Message == nil {
+				return
+			}
+			d := common.NewDeserializer(r.Message.Serialize())
+			m, err := schema.NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				t.Fatalf("There was an error while deserializing a join result %s", err)
+			}
+
+			nc, err := strconv.Atoi(m.Name)
+			if err != nil {
+				t.Fatalf("There was an error while deserializing a join result %s", err)
+			}
+
+			if int(m.Count) != ga-nc {
+				t.Fatalf("Game %s with count %d", m.Name, m.Count)
+			}
+			if r.SentCallback != nil {
+				r.SentCallback()
+			}
+
+		case err, ok := <-ce:
+			if err == nil && !ok {
+				continue
+			}
+			t.Fatalf("There was an error while making the next stage %s", err)
+		}
 	}
 }
