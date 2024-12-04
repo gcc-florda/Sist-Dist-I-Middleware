@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"middleware/common"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 )
 
 type InfraManager struct {
 	WorkersManager *WorkerStatusManager
 	ReplicaManager *ReplicaManager
+	term           chan os.Signal
 }
 
 func NewInfraManager(ringIp string, ringPort string, ringReplicasAmount int) (*InfraManager, error) {
@@ -20,13 +23,20 @@ func NewInfraManager(ringIp string, ringPort string, ringReplicasAmount int) (*I
 		return nil, err
 	}
 
-	return &InfraManager{
+	m := &InfraManager{
 		ReplicaManager: NewReplicaManager(id, ringReplicasAmount, ringIp, ringPort),
 		WorkersManager: NewWorkerStatusManager(),
-	}, nil
+		term:           make(chan os.Signal, 1),
+	}
+
+	signal.Notify(m.term, syscall.SIGTERM)
+
+	return m, nil
 }
 
 func (m *InfraManager) Start(workerPort string) error {
+	go m.HandleShutdown()
+
 	go m.ReplicaManager.Start()
 
 	log.Debug("Loading architecture")
@@ -60,13 +70,13 @@ func (m *InfraManager) ListenForWorkers(workerPort string) {
 				return
 			}
 		default:
-			log.Debugf("Establishing connection with worker %s", worker.Name)
-			worker.Listener = workerPort
+			log.Debugf("Establishing connection with worker %s", worker.name)
+			worker.port = workerPort
 			worker.EstablishConnection()
 
-			log.Debugf("Handling worker %s", worker.Name)
+			log.Debugf("Handling worker %s", worker.name)
 			go worker.Handle()
-			log.Debugf("Finish handling worker %s", worker.Name)
+			log.Debugf("Finish handling worker %s", worker.name)
 		}
 	}
 }
@@ -159,4 +169,13 @@ func (m *InfraManager) LoadArchitecture() error {
 	}
 
 	return nil
+}
+
+func (m *InfraManager) HandleShutdown() {
+	<-m.term
+	log.Criticalf("Received SIGTERM")
+
+	m.WorkersManager.HandleShutdown()
+
+	m.ReplicaManager.HandleShutdown()
 }

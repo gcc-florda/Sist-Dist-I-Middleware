@@ -345,3 +345,9 @@ func (rm *ReplicaManager) GetPostNeighbour(id int) *ReplicaNeighbour {
 
 	return nil
 }
+
+func (rm *ReplicaManager) HandleShutdown() {
+	for _, neigh := range rm.neighbours {
+		neigh.conn.Close()
+	}
+}

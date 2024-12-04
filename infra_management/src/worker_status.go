@@ -13,75 +13,67 @@ import (
 var log = logging.MustGetLogger("log")
 
 type WorkerStatus struct {
-	Name       string
-	Alive      bool
-	Connection net.Conn
-	Listener   string
+	name       string
+	alive      bool
+	connection net.Conn
+	port       string
 	CoordNews  chan bool
 }
 
 func NewWorkerStatus(name string) *WorkerStatus {
 	return &WorkerStatus{
-		Name:      name,
-		Alive:     false,
+		name:      name,
+		alive:     false,
 		CoordNews: make(chan bool, 2),
 	}
 }
 
 func (w *WorkerStatus) Send(message string) error {
-	return common.Send(message, w.Connection)
+	return common.Send(message, w.connection)
 }
 
 func (w *WorkerStatus) Receive() (string, error) {
-	return common.Receive(w.Connection)
+	return common.Receive(w.connection)
 }
 
 func (w *WorkerStatus) UpdateWorkerStatus(alive bool, conn net.Conn) {
-	w.Alive = alive
-	if conn == nil && w.Connection != nil {
-		w.Connection.Close()
+	w.alive = alive
+	if conn == nil && w.connection != nil {
+		w.connection.Close()
 	}
-	w.Connection = conn
+	w.connection = conn
 }
 
 func (w *WorkerStatus) Revive() {
-	log.Debugf("Reviving worker: %s", w.Name)
-	if common.ReviveContainer(w.Name, 3) != nil {
-		log.Criticalf("Failed to revive worker: %s", w.Name)
+	log.Debugf("Reviving worker: %s", w.name)
+	if common.ReviveContainer(w.name, 3) != nil {
+		log.Criticalf("Failed to revive worker: %s", w.name)
 		return
 	}
-	log.Debugf("Worker revived: %s, establishing connection", w.Name)
-	w.EstablishConnection()
+	log.Debugf("Worker revived: %s, establishing connection", w.name)
 }
 
 func (w *WorkerStatus) EstablishConnection() {
-	log.Debugf("Connecting manager to worker: %s", w.Name)
-	const maxRetries = 3
-
-	for i := 0; i < maxRetries; i++ {
-		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.Name, w.Listener))
+	log.Debugf("Connecting manager to worker: %s", w.name)
+	for common.DoWithRetry(func() error {
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.name, w.port))
 		if err == nil {
-			log.Debugf("Manager connected to worker: %s", w.Name)
+			log.Debugf("Manager connected to worker: %s", w.name)
 			w.UpdateWorkerStatus(true, conn)
-			return
+			return nil
 		}
-		if i == maxRetries-1 {
-			// Asumed dead
-			log.Criticalf("Failed to connect to worker %s", w.Name)
-			w.Revive()
-			i = 0
-		}
-		log.Debugf("Manager failed to connect to worker, sleeping: %s", w.Name)
-		time.Sleep(20 * time.Second)
+		return err
+	}, 3) != nil {
+		w.Revive()
 	}
 }
 
 func (w *WorkerStatus) Handle() error {
-	defer w.Connection.Close()
+	defer w.connection.Close()
 
-	log.Debugf("Watching worker: %s", w.Name)
+	log.Debugf("Watching worker: %s", w.name)
 	w.Watch()
-	log.Debugf("Stop Watching worker: %s", w.Name)
+	log.Debugf("Stop Watching worker: %s", w.name)
 
 	return nil
 }
@@ -91,34 +83,34 @@ func (w *WorkerStatus) Watch() {
 		select {
 		case msg := <-w.CoordNews:
 			if !msg {
-				log.Infof("Finish watching worker %s", w.Name)
+				log.Infof("Finish watching worker %s", w.name)
 				return
 			}
 		default:
-			log.Debugf("Sending HCK to worker %s", w.Name)
+			log.Debugf("Sending HCK to worker %s", w.name)
 			if w.Send("HCK") != nil {
-				log.Debugf("Error sending HCK to worker %s", w.Name)
+				log.Debugf("Error sending HCK to worker %s", w.name)
 				w.SetDeadWorkerNRevive()
 				continue
 			}
 
-			log.Debugf("Receiving message from worker %s", w.Name)
+			log.Debugf("Receiving message from worker %s", w.name)
 			message, err := w.Receive()
 
 			if err != nil {
-				log.Debugf("Error receiving message from worker %s", w.Name)
+				log.Debugf("Error receiving message from worker %s", w.name)
 				w.SetDeadWorkerNRevive()
 				continue
 			} else {
 				messageAlive := common.ManagementMessage{Content: message}
 
 				if !messageAlive.IsAlive() {
-					log.Debugf("Expecting alive message from worker %s, got %s", w.Name, message)
+					log.Debugf("Expecting alive message from worker %s, got %s", w.name, message)
 					w.SetDeadWorkerNRevive()
 					continue
 				}
 
-				log.Debugf("Worker %s is alive", w.Name)
+				log.Debugf("Worker %s is alive", w.name)
 			}
 
 			log.Debugf("Sleeping for 10 seconds before next check")
@@ -129,7 +121,7 @@ func (w *WorkerStatus) Watch() {
 }
 
 func (w *WorkerStatus) SetDeadWorkerNRevive() {
-	log.Debugf("Worker %s is dead, update status and revive", w.Name)
+	log.Debugf("Worker %s is dead, update status and revive", w.name)
 	w.UpdateWorkerStatus(false, nil)
 	w.Revive()
 }
@@ -153,9 +145,15 @@ func (wsm *WorkerStatusManager) GetWorkerStatusByName(name string) *WorkerStatus
 	log.Debugf("Searching for worker %s", workerName)
 
 	for i := range wsm.Workers {
-		if wsm.Workers[i].Name == workerName {
+		if wsm.Workers[i].name == workerName {
 			return wsm.Workers[i]
 		}
 	}
 	return nil
+}
+
+func (wsm *WorkerStatusManager) HandleShutdown() {
+	for _, worker := range wsm.Workers {
+		worker.connection.Close()
+	}
 }
