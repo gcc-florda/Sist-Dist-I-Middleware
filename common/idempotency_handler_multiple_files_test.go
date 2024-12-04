@@ -7,10 +7,36 @@ import (
 	"testing"
 )
 
+type KeyedStateTest struct {
+	key   string
+	count uint32
+}
+
+func (s *KeyedStateTest) Serialize() []byte {
+	se := common.NewSerializer()
+	return se.WriteString(s.key).WriteUint32(s.count).ToBytes()
+}
+
+func KeyedStateTesDeserialize(d *common.Deserializer) (*KeyedStateTest, error) {
+	app, err := d.ReadString()
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := d.ReadUint32()
+	if err != nil {
+		return nil, err
+	}
+	return &KeyedStateTest{
+		key:   app,
+		count: c,
+	}, nil
+}
+
 var mfhandler_test_files = filepath.Join(root_test_files, "handler_multiple_files")
 
 func deleteMFHandlerTestFiles() {
-	os.Remove(mfhandler_test_files)
+	os.RemoveAll(mfhandler_test_files)
 }
 
 func init() {
@@ -20,7 +46,7 @@ func init() {
 }
 
 func prepareDir(dirname string) (*common.IdempotencyHandlerMultipleFiles[*StateTest], error) {
-	mfh, err := common.NewIdempotencyHandlerMultipleFiles[*StateTest](filepath.Join(mfhandler_test_files, dirname))
+	mfh, err := common.NewIdempotencyHandlerMultipleFiles[*StateTest](filepath.Join(mfhandler_test_files, dirname), 2)
 	if err != nil {
 		return nil, err
 	}
@@ -69,28 +95,6 @@ func TestSaveMultiFile(t *testing.T) {
 		t.Fatalf("Error while creating the handler %s", err)
 	}
 
-	dir, err := os.Open(filepath.Join(mfhandler_test_files, "save_test"))
-	if err != nil {
-		t.Fatalf("failed to open directory: %s", err)
-	}
-	defer dir.Close()
-
-	files, err := dir.Readdir(-1) // Read all entries
-	if err != nil {
-		t.Fatalf("failed to read directory: %s", err)
-	}
-
-	count := 0
-	for _, file := range files {
-		if file.Mode().IsRegular() {
-			count++
-		}
-	}
-
-	if count != 3 {
-		t.Fatalf("The amount of files created is different than expected %d - %d", count, 3)
-	}
-
 	if !mfh.AlreadyProcessed(&common.IdempotencyID{
 		Origin:   "A",
 		Sequence: 4,
@@ -119,7 +123,7 @@ func TestLoadMultiFile(t *testing.T) {
 		t.Fatalf("Error while creating the handler %s", err)
 	}
 
-	mfh, err := common.NewIdempotencyHandlerMultipleFiles[*StateTest](filepath.Join(mfhandler_test_files, "load_test"))
+	mfh, err := common.NewIdempotencyHandlerMultipleFiles[*StateTest](filepath.Join(mfhandler_test_files, "load_test"), 2)
 
 	mfh.LoadState(StateTestDeserialize)
 
@@ -151,9 +155,9 @@ func TestLoadMultiFileCorrupt(t *testing.T) {
 		t.Fatalf("Error while creating the handler %s", err)
 	}
 
-	corrupt_test_file(filepath.Join(mfhandler_test_files, "load_test_corrupt", "3"), 2)
+	mfh, err := common.NewIdempotencyHandlerMultipleFiles[*StateTest](filepath.Join(mfhandler_test_files, "load_test_corrupt"), 2)
 
-	mfh, err := common.NewIdempotencyHandlerMultipleFiles[*StateTest](filepath.Join(mfhandler_test_files, "load_test_corrupt"))
+	corrupt_test_file(filepath.Join(mfhandler_test_files, "load_test_corrupt", mfh.GetFileName("3")), 2)
 
 	mfh.LoadState(StateTestDeserialize)
 
@@ -183,5 +187,51 @@ func TestLoadMultiFileCorrupt(t *testing.T) {
 		Sequence: 6,
 	}) {
 		t.Fatalf("An Unknown ID was marked as already processed")
+	}
+}
+
+func TestLoadState(t *testing.T) {
+	mfh, _ := common.NewIdempotencyHandlerMultipleFiles[*KeyedStateTest](filepath.Join(mfhandler_test_files, "load_state"), 1)
+
+	for i := 0; i < 10; i++ {
+		mfh.SaveState(&common.IdempotencyID{
+			Origin:   "A",
+			Sequence: uint32(i),
+		}, &KeyedStateTest{
+			key:   "a",
+			count: 1,
+		}, "a")
+	}
+
+	for i := 0; i < 20; i++ {
+		mfh.SaveState(&common.IdempotencyID{
+			Origin:   "B",
+			Sequence: uint32(i),
+		}, &KeyedStateTest{
+			key:   "b",
+			count: 1,
+		}, "b")
+	}
+
+	ca, _ := mfh.ReadSerialState("a", KeyedStateTesDeserialize, func(cs1, cs2 *KeyedStateTest) *KeyedStateTest {
+		if cs2.key == "a" {
+			cs1.count += cs2.count
+		}
+		return cs1
+	}, &KeyedStateTest{key: "a", count: 0})
+
+	cb, _ := mfh.ReadSerialState("b", KeyedStateTesDeserialize, func(cs1, cs2 *KeyedStateTest) *KeyedStateTest {
+		if cs2.key == "b" {
+			cs1.count += cs2.count
+		}
+		return cs1
+	}, &KeyedStateTest{key: "b", count: 0})
+
+	if ca.count != 10 {
+		t.Fatalf("The count for the keyed state is not correct %d - %d", ca.count, 10)
+	}
+
+	if cb.count != 20 {
+		t.Fatalf("The count for the keyed state is not correct %d - %d", cb.count, 20)
 	}
 }

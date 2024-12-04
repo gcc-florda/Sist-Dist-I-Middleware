@@ -83,13 +83,10 @@ type Controller struct {
 }
 
 func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
-	v, err := common.InitConfig("/app/controller/config.yaml")
-	if err != nil {
-		log.Criticalf("%s", err)
-	}
-
 	mts := make(chan *messageToSend, 50)
 	h := make(chan *HandlerRuntime, 50)
+
+	var err error = nil
 
 	c := &Controller{
 		name:     controllerName,
@@ -104,10 +101,10 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 		rxFinish: h,
 	}
 
-	c.Listener, err = net.Listen("tcp", fmt.Sprintf(":%s", v.GetString("worker.port")))
+	c.Listener, err = net.Listen("tcp", fmt.Sprintf(":%s", common.Config.GetString("worker.port")))
 	common.FailOnError(err, "Failed to connect to listener")
 
-	log.Infof("Worker listening on port %s", fmt.Sprintf(":%s", v.GetString("worker.port")))
+	log.Infof("Worker listening on port %s", fmt.Sprintf(":%s", common.Config.GetString("worker.port")))
 
 	// Artificially add one to keep it spinning as long as we don't get a shutdown
 	c.runtimeWG.Add(1)

@@ -1,13 +1,61 @@
 package common
 
 import (
+	"container/list"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 )
 
+type cacheNode struct {
+	data   *TemporaryStorage
+	keyPtr *list.Element
+}
+
+type stgCache struct {
+	queue     *list.List
+	cachesize int
+	items     map[string]*cacheNode
+}
+
+func (c *stgCache) put(key string, value *TemporaryStorage) {
+	if item, ok := c.items[key]; !ok {
+		if c.cachesize == len(c.items) {
+			back := c.queue.Back()
+			c.queue.Remove(back)
+			stg := c.items[back.Value.(string)]
+			stg.data.Close()
+			delete(c.items, back.Value.(string))
+		}
+		c.items[key] = &cacheNode{data: value, keyPtr: c.queue.PushFront(key)}
+	} else {
+		item.data = value
+		c.items[key] = item
+		c.queue.MoveToFront(item.keyPtr)
+	}
+}
+
+func (l *stgCache) get(key string) *TemporaryStorage {
+	if item, ok := l.items[key]; ok {
+		l.queue.MoveToFront(item.keyPtr)
+		return item.data
+	}
+	return nil
+}
+
+func (l *stgCache) clear() {
+	for k := range l.items {
+		l.items[k].data.Close()
+		l.queue.Remove(l.items[k].keyPtr)
+		delete(l.items, k)
+	}
+
+}
+
 type fileManager struct {
 	dirname string
+	cache   *stgCache
 }
 
 func ensureDir(dirname string) error {
@@ -30,12 +78,16 @@ func ensureDir(dirname string) error {
 	// Directory exists and is valid, or was created successfully
 	return nil
 }
-func newFileManager(dirname string) (*fileManager, error) {
+func newFileManager(dirname string, cacheSize uint32) (*fileManager, error) {
 	err := ensureDir(dirname)
 	if err != nil {
 		return nil, err
 	}
-	return &fileManager{dirname: dirname}, nil
+	return &fileManager{dirname: dirname, cache: &stgCache{
+		queue:     list.New(),
+		cachesize: int(cacheSize),
+		items:     make(map[string]*cacheNode),
+	}}, nil
 }
 
 func (fm *fileManager) Files() (<-chan *TemporaryStorage, error) {
@@ -68,11 +120,20 @@ func (fm *fileManager) Files() (<-chan *TemporaryStorage, error) {
 }
 
 func (fm *fileManager) Open(filename string) (*TemporaryStorage, error) {
-	return NewTemporaryStorage(filepath.Join(fm.dirname, filename))
+	if v := fm.cache.get(filename); v != nil {
+		return v, nil
+	}
+	n, err := NewTemporaryStorage(filepath.Join(fm.dirname, filename))
+	if err != nil {
+		return nil, err
+	}
+	fm.cache.put(filename, n)
+	return n, nil
+
 }
 
 func (fm *fileManager) Close() {
-	// Nothing to close
+	fm.cache.clear()
 }
 
 func (fm *fileManager) Delete() error {
@@ -82,16 +143,18 @@ func (fm *fileManager) Delete() error {
 type IdempotencyHandlerMultipleFiles[T Serializable] struct {
 	idemStore   *IdempotencyStore
 	filemanager *fileManager
+	nrFiles     uint32
 }
 
-func NewIdempotencyHandlerMultipleFiles[T Serializable](dirname string) (*IdempotencyHandlerMultipleFiles[T], error) {
-	fm, err := newFileManager(dirname)
+func NewIdempotencyHandlerMultipleFiles[T Serializable](dirname string, N uint32) (*IdempotencyHandlerMultipleFiles[T], error) {
+	fm, err := newFileManager(dirname, N/2)
 	if err != nil {
 		return nil, err
 	}
 	return &IdempotencyHandlerMultipleFiles[T]{
 		idemStore:   NewIdempotencyStore(),
 		filemanager: fm,
+		nrFiles:     N,
 	}, nil
 }
 
@@ -119,12 +182,12 @@ func (h *IdempotencyHandlerMultipleFiles[T]) LoadState(
 	return nil
 }
 
-func (h *IdempotencyHandlerMultipleFiles[T]) SaveState(caused_by *IdempotencyID, state T, where string) error {
-	storage, err := h.filemanager.Open(where)
+func (h *IdempotencyHandlerMultipleFiles[T]) SaveState(caused_by *IdempotencyID, state T, key string) error {
+	storage, err := h.filemanager.Open(h.GetFileName(key))
 	if err != nil {
 		return err
 	}
-	defer storage.Close()
+
 	err = SaveState(caused_by, state, storage)
 	if err != nil {
 		return err
@@ -134,16 +197,16 @@ func (h *IdempotencyHandlerMultipleFiles[T]) SaveState(caused_by *IdempotencyID,
 }
 
 func (h *IdempotencyHandlerMultipleFiles[T]) ReadSerialState(
-	filename string,
+	key string,
 	des func(*Deserializer) (T, error),
 	agg func(T, T) T,
 	initial T,
 ) (T, error) {
-	f, err := h.filemanager.Open(filename)
+	f, err := h.filemanager.Open(h.GetFileName(key))
 	if err != nil {
 		return initial, err
 	}
-	defer f.Close()
+
 	_, state, err := LoadSavedState(f, des, agg, initial)
 	if err != nil {
 		return initial, err
@@ -161,4 +224,11 @@ func (h *IdempotencyHandlerMultipleFiles[T]) Close() {
 
 func (h *IdempotencyHandlerMultipleFiles[T]) Delete() error {
 	return h.filemanager.Delete()
+}
+
+func (h *IdempotencyHandlerMultipleFiles[T]) GetFileName(key string) string {
+	hasher := fnv.New32a()
+	hasher.Write([]byte(key))
+	hash := hasher.Sum32()
+	return fmt.Sprint((hash % h.nrFiles) + 1)
 }
