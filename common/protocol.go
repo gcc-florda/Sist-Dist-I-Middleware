@@ -113,8 +113,6 @@ func DeserializeClientMessage(message string) (ClientMessage, error) {
 }
 
 func Send(message string, conn net.Conn) error {
-	log.Infof("TCP SEND %s", message)
-
 	messageBytes := []byte(message)
 
 	buffer := new(bytes.Buffer)
@@ -166,8 +164,6 @@ func Receive(conn net.Conn) (string, error) {
 	}
 
 	messageString := strings.Trim(string(messageBytes), "\n")
-
-	log.Infof("TCP RECEIVE %s", messageString)
 
 	return messageString, nil
 }

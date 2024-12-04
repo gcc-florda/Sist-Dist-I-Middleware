@@ -4,10 +4,13 @@ import (
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
-	"sync/atomic"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"golang.org/x/exp/rand"
 )
+
+const testing bool = false
 
 type NextStageMessage struct {
 	Message      schema.Partitionable
@@ -25,10 +28,9 @@ type HandlerRuntime struct {
 	JobId          common.JobID
 	Tx             chan<- *messageFromQueue
 	ControllerName string
-	Mark           atomic.Int32
+	Mark           int32
 
-	txFwd    chan<- *messageToSend
-	finished chan<- *HandlerRuntime
+	txFwd chan<- *messageToSend
 
 	handler     Handler
 	validateEOF EOFValidator
@@ -38,6 +40,8 @@ type HandlerRuntime struct {
 	removeOnCleanup bool
 	finish          chan bool
 	sequenceCounter uint32
+
+	r *rand.Rand
 }
 
 func NewHandlerRuntime(
@@ -46,12 +50,13 @@ func NewHandlerRuntime(
 	handler Handler,
 	validator EOFValidator,
 	send chan<- *messageToSend,
-	housekeeping chan<- *HandlerRuntime,
 ) (*HandlerRuntime, error) {
 	eof, err := NewEOFState(common.Config.GetString("metasavepath"), filepath.Join(controllerName, j.String()))
 	if err != nil {
 		return nil, err
 	}
+
+	r := rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
 
 	ch := make(chan *messageFromQueue, 100)
 
@@ -63,15 +68,47 @@ func NewHandlerRuntime(
 		validateEOF:     validator,
 		txFwd:           send,
 		rx:              ch,
-		finished:        housekeeping,
 		eofs:            eof,
 		removeOnCleanup: false,
 		finish:          make(chan bool, 1),
-		Mark:            atomic.Int32{},
+		Mark:            0,
+		r:               r,
 	}
 
 	go c.Start()
 	return c, nil
+}
+
+func (h *HandlerRuntime) randAmount() int {
+	weights := []float64{0.9, 0.07, 0.03} // High bias for 1, less for 2, much less for 3
+	r := h.r.Float64()
+	accum := 0.0
+	for i, weight := range weights {
+		accum += weight
+		if r < accum {
+			return i // Return the corresponding number (0,1,2)
+		}
+	}
+	return 1
+}
+
+func (h *HandlerRuntime) sendForward(m *messageToSend) {
+	if testing {
+		cpy := &messageToSend{
+			Routing:  m.Routing,
+			Sequence: m.Sequence,
+			JobID:    m.JobID,
+			Body:     m.Body,
+			Callback: nil,
+			Ack:      nil,
+		}
+		h.txFwd <- m
+		for i := 0; i < h.randAmount(); i++ {
+			h.txFwd <- cpy
+		}
+		return
+	}
+	h.txFwd <- m
 }
 
 func (h *HandlerRuntime) Start() {
@@ -85,6 +122,11 @@ func (h *HandlerRuntime) Start() {
 	}()
 
 	for msg := range h.rx {
+		// We are going to do something.
+		// Even if it's a repeated EOF message, it shouldn't be too big of a problem
+		// to restart the cleaning cycle
+		h.Mark = 0
+
 		if !msg.Message.IsEOF() {
 			h.handleDataMessage(msg)
 			continue
@@ -101,7 +143,7 @@ func (h *HandlerRuntime) Start() {
 			ok := h.handleNextStage()
 			if ok {
 				h.sequenceCounter += 1
-				h.txFwd <- h.broadcast(&NextStageMessage{
+				h.sendForward(h.broadcast(&NextStageMessage{
 					Message:  msgFwd,
 					Sequence: h.sequenceCounter,
 					SentCallback: func() {
@@ -114,7 +156,7 @@ func (h *HandlerRuntime) Start() {
 						msg.Delivery.Ack(false)
 						h.signalFinish()
 					},
-				}, nil)
+				}, nil))
 			}
 		} else if updated && !finished {
 			h.eofs.SaveState(eof.TokenName, msg.Message.IdemID())
@@ -125,14 +167,11 @@ func (h *HandlerRuntime) Start() {
 		} else {
 			msg.Delivery.Ack(false)
 		}
-		h.Mark.Swap(0)
 	}
 }
 
 func (h *HandlerRuntime) signalFinish() {
-	// Tell the controller to close my sending channel
 	h.removeOnCleanup = true
-	h.finished <- h
 }
 
 func (h *HandlerRuntime) Finish() {
@@ -151,7 +190,7 @@ func (h *HandlerRuntime) handleDataMessage(msg *messageFromQueue) {
 		msg.Delivery.Nack(false, true)
 	}
 	if out != nil {
-		h.txFwd <- h.unicast(out, &msg.Delivery)
+		h.sendForward(h.unicast(out, &msg.Delivery))
 	} else {
 		msg.Delivery.Ack(false)
 	}
@@ -169,7 +208,7 @@ sendLoop:
 			}
 			m := h.unicast(r, nil)
 			if m != nil {
-				h.txFwd <- m
+				h.sendForward(m)
 			}
 		case err, ok := <-ce:
 			if err == nil && !ok {

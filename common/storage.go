@@ -97,10 +97,10 @@ func (t *TemporaryStorage) Append(data []byte) (int, error) {
 	if err != nil {
 		return w, err
 	}
-	err = t.file.Sync()
-	if err != nil {
-		return w, err
-	}
+	// err = t.file.Sync()
+	// if err != nil {
+	// 	return w, err
+	// }
 	return w, nil
 }
 

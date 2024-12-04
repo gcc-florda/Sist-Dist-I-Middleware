@@ -19,7 +19,7 @@ func NewJoin(base string, query string, id string, partition int, bufSize int) (
 	basefiles := filepath.Join(".", base, fmt.Sprintf("%s_%d", query, partition), "join", id)
 
 	r, err := common.NewIdempotencyHandlerMultipleFiles[*CountState](
-		filepath.Join(basefiles, "reviews"),
+		filepath.Join(basefiles, "reviews"), 25,
 	)
 
 	if err != nil {
@@ -56,7 +56,7 @@ func (q *Join) AddReview(r *schema.ValidReview, idempotencyID *common.Idempotenc
 		return nil
 	}
 
-	err := q.reviewStorage.SaveState(idempotencyID, &CountState{count: 1}, r.AppID)
+	err := q.reviewStorage.SaveState(idempotencyID, &CountState{appID: r.AppID, count: 1}, r.AppID)
 	if err != nil {
 		log.Debugf("Action: Saving Review to Join | Result: Error | Error: %s", err)
 		return err
@@ -101,7 +101,17 @@ func (q *Join) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 			if line < fs.LastConfirmedSent() {
 				continue
 			}
-			reviews, err := q.reviewStorage.ReadSerialState(game.AppID, CountStateDeserialize, CountStateAggregate, &CountState{count: 0})
+			reviews, err := q.reviewStorage.ReadSerialState(
+				game.AppID,
+				CountStateDeserialize,
+				func(cs1, cs2 *CountState) *CountState {
+					if cs2.appID == game.AppID {
+						return CountStateAggregate(cs1, cs2)
+					}
+					return cs1
+				},
+				&CountState{appID: game.AppID, count: 0},
+			)
 			if err != nil {
 				ce <- err
 				return

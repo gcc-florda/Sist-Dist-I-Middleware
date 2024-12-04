@@ -73,8 +73,13 @@ class Chaos:
         self._client.close()
 
     def kill_node(self, node: Node) -> None:
-        c = self._client.containers.get(node.name)
-        c.kill()
+        try:
+            c = self._client.containers.get(node.name)
+            c.kill()
+            node.last_killed = datetime.now()
+            print(f"killed node {node.name}")
+        except Exception as e:
+            print(f"Can't kill {node.name}. Reason: {e}")
 
     def _in_thread(self, target, args) -> None:
         if self._exp and self._exp.is_alive():
@@ -82,7 +87,7 @@ class Chaos:
         
         self.reset()
         self._exp = threading.Thread(target=target, args=args)
-        self._exp.start
+        self._exp.start()
 
     def _start_random(self, timeout: int, cooldown: int, seed:int = 0)->None:
         r = random.Random(seed)
@@ -124,7 +129,7 @@ def traverse(controllers: dict, architecture: dict):
     r = []
     if not isinstance(controllers, dict):
         for i in range(1, architecture['partition_amount'] + 1):
-            r.append(Node(f"{controllers}_{i}"))
+            r.append(Node(f"node_{controllers}_{i}".lower()))
         return r
     for key, value in controllers.items():
         v = traverse(value, architecture[key])
@@ -138,7 +143,9 @@ def build_nodes() -> list[Node]:
     return traverse(controllers, architecture)
 
 w = Chaos(build_nodes())
-m = Chaos([Node(name) for name in extras])
+# m = Chaos([Node(name) for name in extras])
 
 w.start_random(5, 20, 42)
-m.start_random(60, 240, 42)
+# m.start_random(60, 240, 42)
+# while True:
+#     time.sleep(500)

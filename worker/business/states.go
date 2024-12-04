@@ -3,20 +3,27 @@ package business
 import "middleware/common"
 
 type CountState struct {
+	appID string
 	count uint32
 }
 
 func (s *CountState) Serialize() []byte {
 	se := common.NewSerializer()
-	return se.WriteUint32(s.count).ToBytes()
+	return se.WriteString(s.appID).WriteUint32(s.count).ToBytes()
 }
 
 func CountStateDeserialize(d *common.Deserializer) (*CountState, error) {
+	app, err := d.ReadString()
+	if err != nil {
+		return nil, err
+	}
+
 	c, err := d.ReadUint32()
 	if err != nil {
 		return nil, err
 	}
 	return &CountState{
+		appID: app,
 		count: c,
 	}, nil
 }
