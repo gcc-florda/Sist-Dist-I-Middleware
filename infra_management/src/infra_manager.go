@@ -8,11 +8,11 @@ import (
 )
 
 type InfraManager struct {
-	Id             int
 	WorkersManager *WorkerStatusManager
+	ReplicaManager *ReplicaManager
 }
 
-func NewInfraManager() (*InfraManager, error) {
+func NewInfraManager(ringIp string, ringPort string, ringReplicasAmount int) (*InfraManager, error) {
 	id, err := strconv.Atoi(os.Getenv("MANAGER_ID"))
 
 	if err != nil {
@@ -21,12 +21,14 @@ func NewInfraManager() (*InfraManager, error) {
 	}
 
 	return &InfraManager{
-		Id:             id,
+		ReplicaManager: NewReplicaManager(id, ringReplicasAmount, ringIp, ringPort),
 		WorkersManager: NewWorkerStatusManager(),
 	}, nil
 }
 
 func (m *InfraManager) Start(workerPort string) error {
+	go m.ReplicaManager.Start()
+
 	log.Debug("Loading architecture")
 
 	err := m.LoadArchitecture()
@@ -36,7 +38,7 @@ func (m *InfraManager) Start(workerPort string) error {
 		return err
 	}
 
-	m.ListenForWorkers(workerPort)
+	// m.ListenForWorkers(workerPort)
 
 	return nil
 }
