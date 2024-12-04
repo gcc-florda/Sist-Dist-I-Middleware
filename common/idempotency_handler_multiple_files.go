@@ -43,12 +43,12 @@ func (fm *fileManager) Files() (<-chan *TemporaryStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer dir.Close()
 
 	filesChan := make(chan *TemporaryStorage)
 
 	go func() {
 		defer close(filesChan)
+		defer dir.Close()
 
 		files, err := dir.Readdirnames(0)
 		if err != nil {

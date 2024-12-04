@@ -121,7 +121,6 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 			h,
 			eof,
 			q.txFwd,
-			q.txFinish,
 		)
 		if err != nil {
 			return nil, err
@@ -131,12 +130,6 @@ func (q *Controller) getHandler(j common.JobID) (*HandlerRuntime, error) {
 		q.runtimeWG.Add(1)
 	}
 	return v, nil
-}
-
-func (q *Controller) markHandlerAsFinished(h *HandlerRuntime) {
-	log.Infof("Action: Marking Handler as Finished %s - %s", h.ControllerName, h.JobId)
-	close(h.Tx)
-	q.handlers[h.JobId].Tx = nil
 }
 
 func (q *Controller) publish(routing string, m common.Serializable) {
@@ -172,15 +165,13 @@ func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-ch
 
 	finishHandler := func(h *HandlerRuntime) {
 		log.Infof("Action: Removing Handler from List %s - %s", h.ControllerName, h.JobId)
-		if h.Tx != nil {
-			close(h.Tx)
-		}
+		close(h.Tx)
 		h.Finish()
 		q.runtimeWG.Done()
 		ids = append(ids, h.JobId)
 	}
 
-	d := 5 * time.Minute
+	d := 1 * time.Minute
 	timer := time.NewTimer(d)
 	for {
 		select {
@@ -192,8 +183,12 @@ func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-ch
 			return
 		case <-timer.C:
 			for id := range q.handlers {
-				q.handlers[id].Mark.Add(1)
-				if q.handlers[id].Mark.CompareAndSwap(q.handlers[id].Mark.Load(), 2) {
+				h := q.handlers[id]
+				h.Mark++
+				if h.Mark == 3 {
+					// Give 2 passes for a little leeway in how much we want to wait
+					// at the third, it means that for three passes the handled didn't do anything
+					// we can safely close it
 					finishHandler(q.handlers[id])
 				}
 			}
@@ -203,14 +198,6 @@ func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-ch
 		}
 	}
 
-}
-
-func (q *Controller) finishHandlerTask(s *sync.WaitGroup) {
-	defer s.Done()
-	for h := range q.rxFinish {
-		q.markHandlerAsFinished(h)
-	}
-	log.Debugf("Closed all handlers")
 }
 
 func (q *Controller) closingTask(s *sync.WaitGroup) {
@@ -261,9 +248,6 @@ func (q *Controller) Start() {
 	go q.closingTask(&end)
 
 	end.Add(1)
-	go q.finishHandlerTask(&end)
-
-	end.Add(1)
 	go q.sendForwardTask(&end)
 
 	end.Add(1)
@@ -304,16 +288,11 @@ mainloop:
 			continue
 		}
 
-		if h.Tx != nil {
-			h.Tx <- &messageFromQueue{
-				Delivery: d,
-				Message:  dm,
-			}
-		} else {
-			log.Debugf("A repeated message for an already finished handler was received. AutoACKING")
-			// The handler signaled that it finished, this is duplicated
-			d.Ack(false)
+		h.Tx <- &messageFromQueue{
+			Delivery: d,
+			Message:  dm,
 		}
+
 	}
 	log.Debugf("Ending main loop")
 	// We have sent everything in flight, finalize the handlers

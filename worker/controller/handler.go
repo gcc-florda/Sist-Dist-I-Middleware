@@ -4,14 +4,13 @@ import (
 	"middleware/common"
 	"middleware/worker/schema"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"golang.org/x/exp/rand"
 )
 
-const testing bool = true
+const testing bool = false
 
 type NextStageMessage struct {
 	Message      schema.Partitionable
@@ -29,10 +28,9 @@ type HandlerRuntime struct {
 	JobId          common.JobID
 	Tx             chan<- *messageFromQueue
 	ControllerName string
-	Mark           atomic.Int32
+	Mark           int32
 
-	txFwd    chan<- *messageToSend
-	finished chan<- *HandlerRuntime
+	txFwd chan<- *messageToSend
 
 	handler     Handler
 	validateEOF EOFValidator
@@ -52,7 +50,6 @@ func NewHandlerRuntime(
 	handler Handler,
 	validator EOFValidator,
 	send chan<- *messageToSend,
-	housekeeping chan<- *HandlerRuntime,
 ) (*HandlerRuntime, error) {
 	eof, err := NewEOFState(common.Config.GetString("metasavepath"), filepath.Join(controllerName, j.String()))
 	if err != nil {
@@ -71,11 +68,10 @@ func NewHandlerRuntime(
 		validateEOF:     validator,
 		txFwd:           send,
 		rx:              ch,
-		finished:        housekeeping,
 		eofs:            eof,
 		removeOnCleanup: false,
 		finish:          make(chan bool, 1),
-		Mark:            atomic.Int32{},
+		Mark:            0,
 		r:               r,
 	}
 
@@ -126,6 +122,11 @@ func (h *HandlerRuntime) Start() {
 	}()
 
 	for msg := range h.rx {
+		// We are going to do something.
+		// Even if it's a repeated EOF message, it shouldn't be too big of a problem
+		// to restart the cleaning cycle
+		h.Mark = 0
+
 		if !msg.Message.IsEOF() {
 			h.handleDataMessage(msg)
 			continue
@@ -166,14 +167,11 @@ func (h *HandlerRuntime) Start() {
 		} else {
 			msg.Delivery.Ack(false)
 		}
-		h.Mark.Swap(0)
 	}
 }
 
 func (h *HandlerRuntime) signalFinish() {
-	// Tell the controller to close my sending channel
 	h.removeOnCleanup = true
-	h.finished <- h
 }
 
 func (h *HandlerRuntime) Finish() {
