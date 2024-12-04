@@ -3,7 +3,8 @@ import copy
 from pathlib import Path
 import shutil
 
-CLIENTS_NR = 3
+CLIENTS_NR = 2
+MANAGERS_NR = 4
 
 def represent_none(self, _):
     return self.represent_scalar('tag:yaml.org,2002:null', '')
@@ -27,6 +28,9 @@ with open("./deployment/controller.yaml") as f:
 
 with open("./architecture.yaml", "r") as f:
     architecture = yaml.safe_load(f)
+
+with open("./deployment/infra_manager.yaml", "r") as f:
+    manager_compose = yaml.safe_load(f)
 
 
 controllers = {
@@ -123,6 +127,12 @@ for i in range(1, CLIENTS_NR + 1):
     cpy["client"]["container_name"] = f"client_{i}"
     cpy["client"]["volumes"][-1] = f"./results/client_{i}:/app/results"
     compose["services"][f"client_{i}"] = cpy["client"]
+
+for i in range(1, MANAGERS_NR + 1):
+    cpy = copy.deepcopy(manager_compose)
+    cpy["manager"]["container_name"] = f"manager_{i}"
+    cpy["manager"]["environment"][0] = f"MANAGER_ID={i}"
+    compose["services"][f"manager_{i}"] = cpy["manager"]
 
 for worker_def in traverse(controllers, architecture):
     compose["services"] = {

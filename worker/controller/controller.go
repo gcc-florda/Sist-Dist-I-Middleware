@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"fmt"
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
+	"net"
 	"os"
 	"os/signal"
 	"reflect"
@@ -69,16 +71,22 @@ type Controller struct {
 
 	protocol Protocol
 
-	txFwd     chan<- *messageToSend
-	rxFwd     <-chan *messageToSend
-	factory   HandlerFactory
-	handlers  map[common.JobID]*HandlerRuntime
-	txFinish  chan<- *HandlerRuntime
-	rxFinish  <-chan *HandlerRuntime
-	runtimeWG sync.WaitGroup
+	txFwd             chan<- *messageToSend
+	rxFwd             <-chan *messageToSend
+	factory           HandlerFactory
+	handlers          map[common.JobID]*HandlerRuntime
+	txFinish          chan<- *HandlerRuntime
+	rxFinish          <-chan *HandlerRuntime
+	runtimeWG         sync.WaitGroup
+	ManagerConnection net.Conn
+	Listener          net.Listener
 }
 
 func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq.Exchange, protocol Protocol, handlerF HandlerFactory) *Controller {
+	v, err := common.InitConfig("/app/controller/config.yaml")
+	if err != nil {
+		log.Criticalf("%s", err)
+	}
 
 	mts := make(chan *messageToSend, 50)
 	h := make(chan *HandlerRuntime, 50)
@@ -95,6 +103,12 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 		txFinish: h,
 		rxFinish: h,
 	}
+
+	c.Listener, err = net.Listen("tcp", fmt.Sprintf(":%s", v.GetString("worker.port")))
+	common.FailOnError(err, "Failed to connect to listener")
+
+	log.Infof("Worker listening on port %s", fmt.Sprintf(":%s", v.GetString("worker.port")))
+
 	// Artificially add one to keep it spinning as long as we don't get a shutdown
 	c.runtimeWG.Add(1)
 	go func() {
@@ -103,6 +117,14 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 		<-term
 		// Remove the artificial one
 		log.Debugf("Received shutdown signal in controller")
+		if c.Listener != nil {
+			c.Listener.Close()
+		}
+
+		if c.ManagerConnection != nil {
+			c.ManagerConnection.Close()
+		}
+
 		c.runtimeWG.Done()
 	}()
 	return c
@@ -150,6 +172,56 @@ func (q *Controller) broadcast(m common.Serializable) {
 	for _, k := range rks {
 		q.publish(k, m)
 	}
+}
+
+func (c *Controller) WaitForManager() {
+
+	for {
+		var err error
+		c.ManagerConnection, err = c.Listener.Accept()
+		if err != nil {
+			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
+			break
+		}
+
+		c.HandleManager()
+	}
+}
+
+func (c *Controller) HandleManager() {
+	defer c.ManagerConnection.Close()
+
+	log.Debugf("Listening for manager messages for controller %s", c.name)
+	for {
+		message, err := common.Receive(c.ManagerConnection)
+
+		if err != nil {
+			log.Errorf("Error receiving manager messages for controller %s", c.name)
+			c.ManagerConnection.Close()
+			time.Sleep(4 * time.Second)
+			break
+		}
+
+		log.Debugf("Received message from manager: %s", message)
+
+		messageHealthCheck := common.ManagementMessage{Content: message}
+
+		if !messageHealthCheck.IsHealthCheck() {
+			log.Errorf("Expecting HealthCheck message from manager but received %s", messageHealthCheck)
+			continue
+		}
+
+		if common.Send("ALV", c.ManagerConnection) != nil {
+			log.Errorf("Error sending ALV to manager for controller %s", c.name)
+			c.ManagerConnection.Close()
+			time.Sleep(4 * time.Second)
+			break
+		}
+
+		log.Debugf("Sent ALV to manager for controller %s", c.name)
+	}
+	log.Debugf("Finish listening for manager messages for controller %s", c.name)
+
 }
 
 func (q *Controller) buildIdemId(sequence uint32) *common.IdempotencyID {
@@ -261,6 +333,9 @@ func (q *Controller) Start() {
 	go q.closingTask(&end)
 
 	end.Add(1)
+	go q.WaitForManager()
+
+	end.Add(1)
 	go q.finishHandlerTask(&end)
 
 	end.Add(1)
@@ -321,11 +396,4 @@ mainloop:
 
 	end.Wait()
 	log.Debugf("Finalized main loop for controller")
-}
-
-func (q *Controller) SignalNoMoreMessages() {
-	// for k := range q.handlers {
-	// 	close(q.handlers[k].forJob)
-	// 	q.handlers[k].Finish()
-	// }
 }

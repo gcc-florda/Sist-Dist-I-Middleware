@@ -25,8 +25,8 @@ func main() {
 		ServerAddress:   v.GetString("server.address"),
 		BatchMaxAmount:  v.GetInt("batch.maxAmount"),
 		BatchSleep:      v.GetDuration("batch.sleep"),
-		GamesFilePath:   "/app/datasets/games_25.csv",
-		ReviewsFilePath: "/app/datasets/reviews_25.csv",
+		GamesFilePath:   "/app/datasets/games.csv",
+		ReviewsFilePath: "/app/datasets/reviews.csv",
 	}
 
 	client := src.NewClient(clientConfig)
