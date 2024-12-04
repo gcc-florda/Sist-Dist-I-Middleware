@@ -1,11 +1,38 @@
 services:
+  client_1:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    container_name: client_1
+    depends_on:
+      - server
+    volumes:
+      - ./datasets:/app/datasets
+      - ./client/config.yaml:/app/config.yaml
+      - ./results/client_1:/app/results
+  client_2:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    container_name: client_2
+    depends_on:
+      - server
+    volumes:
+      - ./datasets:/app/datasets
+      - ./client/config.yaml:/app/config.yaml
+      - ./results/client_2:/app/results
   manager_1:
     build:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       - MANAGER_ID=1
+    links:
+      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
@@ -15,8 +42,13 @@ services:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_2
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       - MANAGER_ID=2
+    links:
+      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
@@ -26,8 +58,13 @@ services:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_3
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       - MANAGER_ID=3
+    links:
+      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
@@ -37,11 +74,317 @@ services:
       context: .
       dockerfile: ./infra_management/Dockerfile
     container_name: manager_4
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       - MANAGER_ID=4
+    links:
+      - rabbitmq
     volumes:
       - ./infra_management/config.yaml:/app/config.yaml
       - ./architecture.yaml:/app/architecture.yaml
       - /var/run/docker.sock:/var/run/docker.sock
+  mfgq1_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfgq1_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFGQ1_1.yaml:/app/controllers.yaml
+  mfgq2_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfgq2_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFGQ2_1.yaml:/app/controllers.yaml
+  mfgq3_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfgq3_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFGQ3_1.yaml:/app/controllers.yaml
+  mfgq4_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfgq4_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFGQ4_1.yaml:/app/controllers.yaml
+  mfgq5_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfgq5_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFGQ5_1.yaml:/app/controllers.yaml
+  mfrq3_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfrq3_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFRQ3_1.yaml:/app/controllers.yaml
+  mfrq4_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfrq4_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFRQ4_1.yaml:/app/controllers.yaml
+  mfrq5_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_mfrq5_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_MFRQ5_1.yaml:/app/controllers.yaml
+  q1s2_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q1s2_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q1S2_1.yaml:/app/controllers.yaml
+  q1s3_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q1s3_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q1S3_1.yaml:/app/controllers.yaml
+  q2s2_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q2s2_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q2S2_1.yaml:/app/controllers.yaml
+  q2s3_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q2s3_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q2S3_1.yaml:/app/controllers.yaml
+  q3s2_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q3s2_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q3S2_1.yaml:/app/controllers.yaml
+  q3s3_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q3s3_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q3S3_1.yaml:/app/controllers.yaml
+  q4s2_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q4s2_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q4S2_1.yaml:/app/controllers.yaml
+  q4s3_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q4s3_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q4S3_1.yaml:/app/controllers.yaml
+  q5s2_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q5s2_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q5S2_1.yaml:/app/controllers.yaml
+  q5s3_1:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    container_name: node_q5s3_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    volumes:
+      - ./architecture.yaml:/app/architecture.yaml
+      - ./worker/common.yaml:/app/common.yaml
+      - ./worker/controller/config.yaml:/app/controller/config.yaml
+      - ./configs/controller_node_Q5S3_1.yaml:/app/controllers.yaml
+  rabbitmq:
+    container_name: rabbit
+    healthcheck:
+      interval: 5s
+      retries: 5
+      test:
+        - CMD
+        - rabbitmqctl
+        - status
+      timeout: 10s
+    image: rabbitmq:3-management
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+  server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    container_name: server
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+    ports:
+      - 12345:12345
+    volumes:
+      - ./server/config.yaml:/app/config.yaml
+      - ./architecture.yaml:/app/architecture.yaml
 volumes:
   rabbitmq_data:

@@ -17,12 +17,14 @@ type WorkerStatus struct {
 	Alive      bool
 	Connection net.Conn
 	Listener   string
+	CoordNews  chan bool
 }
 
 func NewWorkerStatus(name string) *WorkerStatus {
 	return &WorkerStatus{
-		Name:  name,
-		Alive: false,
+		Name:      name,
+		Alive:     false,
+		CoordNews: make(chan bool, 2),
 	}
 }
 
@@ -86,35 +88,43 @@ func (w *WorkerStatus) Handle() error {
 
 func (w *WorkerStatus) Watch() {
 	for {
-		log.Debugf("Sending HCK to worker %s", w.Name)
-		if w.Send("HCK") != nil {
-			log.Debugf("Error sending HCK to worker %s", w.Name)
-			w.SetDeadWorkerNRevive()
-			continue
-		}
-
-		log.Debugf("Receiving message from worker %s", w.Name)
-		message, err := w.Receive()
-
-		if err != nil {
-			log.Debugf("Error receiving message from worker %s", w.Name)
-			w.SetDeadWorkerNRevive()
-			continue
-		} else {
-			messageAlive := common.ManagementMessage{Content: message}
-
-			if !messageAlive.IsAlive() {
-				log.Debugf("Expecting alive message from worker %s, got %s", w.Name, message)
+		select {
+		case msg := <-w.CoordNews:
+			if !msg {
+				log.Infof("Finish watching worker %s", w.Name)
+				return
+			}
+		default:
+			log.Debugf("Sending HCK to worker %s", w.Name)
+			if w.Send("HCK") != nil {
+				log.Debugf("Error sending HCK to worker %s", w.Name)
 				w.SetDeadWorkerNRevive()
 				continue
 			}
 
-			log.Debugf("Worker %s is alive", w.Name)
+			log.Debugf("Receiving message from worker %s", w.Name)
+			message, err := w.Receive()
+
+			if err != nil {
+				log.Debugf("Error receiving message from worker %s", w.Name)
+				w.SetDeadWorkerNRevive()
+				continue
+			} else {
+				messageAlive := common.ManagementMessage{Content: message}
+
+				if !messageAlive.IsAlive() {
+					log.Debugf("Expecting alive message from worker %s, got %s", w.Name, message)
+					w.SetDeadWorkerNRevive()
+					continue
+				}
+
+				log.Debugf("Worker %s is alive", w.Name)
+			}
+
+			log.Debugf("Sleeping for 10 seconds before next check")
+
+			time.Sleep(10 * time.Second)
 		}
-
-		log.Debugf("Sleeping for 10 seconds before next check")
-
-		time.Sleep(10 * time.Second)
 	}
 }
 
