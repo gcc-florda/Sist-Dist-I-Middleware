@@ -60,10 +60,10 @@ func ReviveContainer(name string, maxRetries int) error {
 		log.Debugf("Container revived: %s", name)
 
 		return nil
-	}, maxRetries)
+	}, maxRetries, 5)
 }
 
-func DoWithRetry(f func() error, maxRetries int) error {
+func DoWithRetry(f func() error, maxRetries int, seconds int) error {
 	for i := 1; i <= maxRetries; i++ {
 		if err := f(); err != nil {
 			log.Debugf("Error while executing function: %v", err)
@@ -73,7 +73,7 @@ func DoWithRetry(f func() error, maxRetries int) error {
 				return err
 			}
 
-			time.Sleep(1 * time.Second)
+			time.Sleep(time.Duration(seconds) * time.Second)
 
 			continue
 		}

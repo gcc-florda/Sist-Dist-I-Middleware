@@ -88,7 +88,7 @@ func (rm *ReplicaManager) EstablishConnection(id int) (net.Conn, error) {
 			return err
 		}
 		return nil
-	}, 3)
+	}, 3, 2)
 
 	return conn, err
 }
@@ -145,7 +145,7 @@ mainloop:
 
 			err = common.DoWithRetry(func() error {
 				return common.Send(msg.Serialize(), neigh.conn)
-			}, 3)
+			}, 3, 2)
 
 			if err != nil {
 				log.Criticalf("[COOR = %d] - Error sending message to neighbour: %s, %s", rm.coordinatorId, msg.Serialize(), err)
@@ -306,7 +306,7 @@ func (rm *ReplicaManager) ManageHealthCheckMessage(conn net.Conn) error {
 
 	err := common.DoWithRetry(func() error {
 		return common.Send(aliveMessage.Serialize(), conn)
-	}, 3)
+	}, 3, 2)
 	if err != nil {
 		log.Errorf("[COOR = %d] - Error sending alive message: %s", rm.coordinatorId, err)
 		return err

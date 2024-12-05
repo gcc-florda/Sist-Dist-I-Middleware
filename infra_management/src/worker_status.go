@@ -55,7 +55,7 @@ func (w *WorkerStatus) EstablishConnection() {
 			w.conn = conn
 			return
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(3 * time.Second)
 	}
 	w.Revive()
 }
