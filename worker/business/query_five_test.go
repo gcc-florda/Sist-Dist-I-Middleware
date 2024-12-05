@@ -248,3 +248,52 @@ func TestQ5CorrectResults(t *testing.T) {
 		}
 	}
 }
+
+func TestQ5CorrectResultsInterrupted(t *testing.T) {
+	q5, err := business.NewQ5("test_files", "99", 1, 90, 10)
+	FatalOnError(err, t, "Cannot create Q5")
+
+	ga := 100
+	fromExpected := business.Q5CalculatePi(ga, 90)
+	for i := ga; i > 0; i-- {
+		q5.Insert(&schema.NamedReviewCounter{
+			Name:  fmt.Sprintf("Game N° %d", i),
+			Count: uint32(i),
+		}, &common.IdempotencyID{
+			Origin:   "A",
+			Sequence: uint32(ga - i + 1),
+		})
+	}
+	q5.Shutdown(false)
+	q52, err := business.NewQ5("test_files", "99", 1, 90, 10)
+
+	cr, ce := q52.NextStage()
+	j := fromExpected + 1
+	for {
+		select {
+		case r, ok := <-cr:
+			if !ok {
+				break
+			}
+			if r.Message == nil {
+				return
+			}
+			d := common.NewDeserializer(r.Message.Serialize())
+			m, err := schema.NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				t.Fatalf("There was an error while deserializing a join result %s", err)
+			}
+
+			if m.Name != fmt.Sprintf("Game N° %d", j) {
+				t.Fatalf("Game %s Reviews Expected: %d Got: %d", m.Name, j, m.Count)
+			}
+			j++
+
+		case err, ok := <-ce:
+			if err == nil && !ok {
+				continue
+			}
+			t.Fatalf("There was an error while making the next stage %s", err)
+		}
+	}
+}

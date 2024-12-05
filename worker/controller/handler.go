@@ -94,16 +94,20 @@ func (h *HandlerRuntime) randAmount() int {
 
 func (h *HandlerRuntime) sendForward(m *messageToSend) {
 	if testing {
-		cpy := &messageToSend{
-			Routing:  m.Routing,
-			Sequence: m.Sequence,
-			JobID:    m.JobID,
-			Body:     m.Body,
-			Callback: nil,
-			Ack:      nil,
-		}
+
 		h.txFwd <- m
 		for i := 0; i < h.randAmount(); i++ {
+			cpy := &messageToSend{
+				Routing: routing{
+					Type: m.Routing.Type,
+					Key:  m.Body.PartitionKey(),
+				},
+				Sequence: m.Sequence,
+				JobID:    m.JobID,
+				Body:     m.Body,
+				Callback: nil,
+				Ack:      nil,
+			}
 			h.txFwd <- cpy
 		}
 		return

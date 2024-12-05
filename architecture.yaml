@@ -30,18 +30,18 @@ query_two:
 
 query_three:
   stage_two:
-    partition_amount: 3
+    partition_amount: 6
   stage_three:
     partition_amount: 1
 
 query_four:
   stage_two:
-    partition_amount: 3
+    partition_amount: 6
   stage_three:
     partition_amount: 1
 
 query_five:
   stage_two:
-    partition_amount: 3
+    partition_amount: 6
   stage_three:
     partition_amount: 1

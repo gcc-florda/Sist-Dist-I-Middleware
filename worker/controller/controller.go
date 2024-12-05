@@ -5,6 +5,7 @@ import (
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
+	"middleware/worker/schema"
 	"net"
 	"os"
 	"os/signal"
@@ -55,7 +56,7 @@ type messageToSend struct {
 	Sequence uint32
 	Callback func()
 	JobID    common.JobID
-	Body     common.Serializable
+	Body     schema.Partitionable
 	Ack      *amqp.Delivery
 }
 
@@ -181,7 +182,6 @@ func (c *Controller) WaitForManager() {
 func (c *Controller) HandleManager() {
 	defer c.ManagerConnection.Close()
 
-	log.Debugf("Listening for manager messages for controller %s", c.name)
 	for {
 		message, err := common.Receive(c.ManagerConnection)
 
@@ -191,8 +191,6 @@ func (c *Controller) HandleManager() {
 			time.Sleep(1 * time.Second)
 			break
 		}
-
-		log.Debugf("Received message from manager: %s", message)
 
 		messageHealthCheck := common.ManagementMessage{Content: message}
 
@@ -208,7 +206,6 @@ func (c *Controller) HandleManager() {
 			break
 		}
 
-		log.Debugf("Sent ALV to manager for controller %s", c.name)
 	}
 	log.Debugf("Finish listening for manager messages for controller %s", c.name)
 
