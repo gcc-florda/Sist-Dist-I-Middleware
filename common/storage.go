@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 )
 
 type TemporaryStorage struct {
@@ -38,6 +40,8 @@ func NewTemporaryStorage(path string) (*TemporaryStorage, error) {
 		term:     make(chan os.Signal, 1),
 	}
 
+	signal.Notify(t.term, syscall.SIGTERM)
+	go t.handleShutdown()
 	return t, nil
 }
 
@@ -47,6 +51,8 @@ func (t *TemporaryStorage) Close() {
 	}
 
 	t.file.Close()
+	signal.Stop(t.term)
+	t.term <- syscall.SIGTERM
 	t.file = nil
 }
 
@@ -57,6 +63,12 @@ func (t *TemporaryStorage) Delete() error {
 		return err
 	}
 	return nil
+}
+
+func (t *TemporaryStorage) handleShutdown() {
+	<-t.term
+	t.Close()
+	close(t.term)
 }
 
 func (t *TemporaryStorage) Overwrite(data []byte) (int, error) {

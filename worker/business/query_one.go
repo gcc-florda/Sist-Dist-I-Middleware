@@ -41,12 +41,7 @@ func NewQ1(base string, id string, partition int, stage string) (*Q1, error) {
 		return nil, err
 	}
 
-	state, err := s.LoadSequentialState(schema.SOCounterDeserialize, schema.SOCounterAggregate, &schema.SOCounter{
-		AppId:   "c",
-		Windows: 0,
-		Linux:   0,
-		Mac:     0,
-	})
+	state, err := s.LoadSequentialState(schema.SOCounterDeserialize, schema.SOCounterAggregate, &schema.SOCounter{})
 
 	if err != nil {
 		return nil, err
@@ -62,8 +57,8 @@ func (q *Q1) Count(r *schema.SOCounter, idempotencyID *common.IdempotencyID) err
 	q.state.Windows += r.Windows
 	q.state.Linux += r.Linux
 	q.state.Mac += r.Mac
-	r.AppId = ""
-	err := q.storage.SaveState(idempotencyID, r)
+
+	err := q.storage.SaveState(idempotencyID, q.state)
 	if err != nil {
 		return err
 	}
@@ -81,6 +76,12 @@ func (q *Q1) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 		ch <- &controller.NextStageMessage{
 			Message:      q.state,
 			Sequence:     1,
+			SentCallback: nil,
+		}
+
+		ch <- &controller.NextStageMessage{
+			Message:      nil,
+			Sequence:     2,
 			SentCallback: nil,
 		}
 	}()

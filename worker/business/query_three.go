@@ -119,23 +119,22 @@ func (q *Q3) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 			ce <- err
 			return
 		}
-		defer fs.Shutdown(true)
-
 		var line uint32 = 1
 		for _, pt := range q.state.Top {
-			if line > fs.LastConfirmedSent() {
-				ch <- &controller.NextStageMessage{
-					Message:      pt,
-					Sequence:     line,
-					SentCallback: fs.Sent,
-				}
+			if line < fs.LastConfirmedSent() {
+				continue
+			}
+			ch <- &controller.NextStageMessage{
+				Message:      pt,
+				Sequence:     line,
+				SentCallback: fs.Sent,
 			}
 			line++
 		}
 
 		ch <- &controller.NextStageMessage{
 			Message:      nil,
-			Sequence:     line,
+			Sequence:     line + 1,
 			SentCallback: nil,
 		}
 	}()

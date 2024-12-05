@@ -269,7 +269,7 @@ func (s *Server) ConsumeResultsQ1() {
 			continue
 		}
 		if m.IsEOF() {
-			log.Infof("Action: Received EOF %s - %s. IdemID: %s", m.JobID(), q.ExternalName, m.IdempotencyID)
+			log.Infof("Action: Received EOF %s - %s", m.JobID(), q.ExternalName)
 			s.QueryOne.Finished = true
 			delivery.Ack(false)
 			continue

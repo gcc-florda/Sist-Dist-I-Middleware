@@ -417,23 +417,22 @@ func (q *Q5) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 			return
 		}
 		var line uint32 = 1
-		defer fs.Shutdown(true)
-
 		for s.Scan() {
-			if line > fs.LastConfirmedSent() {
-				b := s.Bytes()
-				d := common.NewDeserializer(b)
-				nrc, err := schema.NamedReviewCounterDeserialize(&d)
-				if err != nil {
-					ce <- err
-					return
-				}
-				if nrc.Count >= val {
-					cr <- &controller.NextStageMessage{
-						Message:      nrc,
-						Sequence:     line,
-						SentCallback: fs.Sent,
-					}
+			if line < fs.LastConfirmedSent() {
+				continue
+			}
+			b := s.Bytes()
+			d := common.NewDeserializer(b)
+			nrc, err := schema.NamedReviewCounterDeserialize(&d)
+			if err != nil {
+				ce <- err
+				return
+			}
+			if nrc.Count >= val {
+				cr <- &controller.NextStageMessage{
+					Message:      nrc,
+					Sequence:     line,
+					SentCallback: fs.Sent,
 				}
 			}
 			line++
@@ -441,7 +440,7 @@ func (q *Q5) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 
 		cr <- &controller.NextStageMessage{
 			Message:      nil,
-			Sequence:     line,
+			Sequence:     line + 1,
 			SentCallback: nil,
 		}
 

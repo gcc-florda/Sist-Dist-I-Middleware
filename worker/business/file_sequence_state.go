@@ -45,7 +45,7 @@ func readLastSequence(stg *common.TemporaryStorage) (*sequence, error) {
 			break
 		}
 
-		lastSequence.nr += seq.nr
+		lastSequence = seq
 		okReadBytes += uint32(len(b))
 	}
 	common.CleanStorage(stg, okReadBytes)
@@ -74,12 +74,5 @@ func (s *FileSequence) LastConfirmedSent() uint32 {
 }
 
 func (s *FileSequence) Sent() {
-	s.storage.Append((&sequence{nr: 1}).Serialize())
-}
-
-func (s *FileSequence) Shutdown(delete bool) {
-	s.storage.Close()
-	if delete {
-		s.storage.Delete()
-	}
+	s.storage.Append((&sequence{nr: s.lastSentSavedToDisk}).Serialize())
 }

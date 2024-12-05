@@ -181,7 +181,7 @@ def build_nodes() -> list[Node]:
 w = Chaos(build_nodes())
 m = Chaos([Node(name) for name in extras])
 
-w.start_random(5, 30, 42)
+w.start_random(5, 60, 42)
 m.start_stepped(60)
 # while True:
 #     time.sleep(500)

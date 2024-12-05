@@ -5,7 +5,6 @@ import (
 	"middleware/common"
 	"middleware/rabbitmq"
 	"middleware/worker/controller/enums"
-	"middleware/worker/schema"
 	"net"
 	"os"
 	"os/signal"
@@ -56,7 +55,7 @@ type messageToSend struct {
 	Sequence uint32
 	Callback func()
 	JobID    common.JobID
-	Body     schema.Partitionable
+	Body     common.Serializable
 	Ack      *amqp.Delivery
 }
 
@@ -165,9 +164,24 @@ func (q *Controller) broadcast(m common.Serializable) {
 	}
 }
 
+func (c *Controller) WaitForManager() {
+
+	for {
+		var err error
+		c.ManagerConnection, err = c.Listener.Accept()
+		if err != nil {
+			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
+			break
+		}
+
+		c.HandleManager()
+	}
+}
+
 func (c *Controller) HandleManager() {
 	defer c.ManagerConnection.Close()
 
+	log.Debugf("Listening for manager messages for controller %s", c.name)
 	for {
 		message, err := common.Receive(c.ManagerConnection)
 
@@ -177,6 +191,8 @@ func (c *Controller) HandleManager() {
 			time.Sleep(1 * time.Second)
 			break
 		}
+
+		log.Debugf("Received message from manager: %s", message)
 
 		messageHealthCheck := common.ManagementMessage{Content: message}
 
@@ -192,6 +208,7 @@ func (c *Controller) HandleManager() {
 			break
 		}
 
+		log.Debugf("Sent ALV to manager for controller %s", c.name)
 	}
 	log.Debugf("Finish listening for manager messages for controller %s", c.name)
 
@@ -293,20 +310,6 @@ func (q *Controller) sendForwardTask(s *sync.WaitGroup) {
 	log.Debugf("Sent all pending messages")
 }
 
-func (c *Controller) listenManagerTask(s *sync.WaitGroup) {
-	defer s.Done()
-	for {
-		var err error
-		c.ManagerConnection, err = c.Listener.Accept()
-		if err != nil {
-			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
-			break
-		}
-
-		c.HandleManager()
-	}
-}
-
 func (q *Controller) Start() {
 	var end sync.WaitGroup
 	f := make(chan bool, 1)
@@ -314,7 +317,7 @@ func (q *Controller) Start() {
 	go q.closingTask(&end)
 
 	end.Add(1)
-	go q.listenManagerTask(&end)
+	go q.WaitForManager()
 
 	end.Add(1)
 	go q.sendForwardTask(&end)
@@ -366,7 +369,7 @@ mainloop:
 	log.Debugf("Ending main loop")
 	// We have sent everything in flight, finalize the handlers
 	f <- true
-	close(f)
+
 	end.Wait()
 	log.Debugf("Finalized main loop for controller")
 }
