@@ -70,13 +70,8 @@ func (m *InfraManager) ListenForWorkers(workerPort string) {
 				return
 			}
 		default:
-			log.Debugf("Establishing connection with worker %s", worker.name)
 			worker.port = workerPort
-			worker.EstablishConnection()
-
-			log.Debugf("Handling worker %s", worker.name)
-			go worker.Handle()
-			log.Debugf("Finish handling worker %s", worker.name)
+			go worker.Watch()
 		}
 	}
 }

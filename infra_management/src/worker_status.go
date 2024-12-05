@@ -13,72 +13,56 @@ import (
 var log = logging.MustGetLogger("log")
 
 type WorkerStatus struct {
-	name       string
-	alive      bool
-	connection net.Conn
-	port       string
-	CoordNews  chan bool
+	name      string
+	conn      net.Conn
+	port      string
+	CoordNews chan bool
 }
 
 func NewWorkerStatus(name string) *WorkerStatus {
 	return &WorkerStatus{
 		name:      name,
-		alive:     false,
 		CoordNews: make(chan bool, 2),
 	}
 }
 
 func (w *WorkerStatus) Send(message string) error {
-	return common.Send(message, w.connection)
+	return common.Send(message, w.conn)
 }
 
 func (w *WorkerStatus) Receive() (string, error) {
-	return common.Receive(w.connection)
-}
-
-func (w *WorkerStatus) UpdateWorkerStatus(alive bool, conn net.Conn) {
-	w.alive = alive
-	if conn == nil && w.connection != nil {
-		w.connection.Close()
-	}
-	w.connection = conn
+	return common.Receive(w.conn)
 }
 
 func (w *WorkerStatus) Revive() {
-	log.Debugf("Reviving worker: %s", w.name)
+	log.Infof("WORKER-REVIVING: %s", w.name)
 	if common.ReviveContainer(w.name, 3) != nil {
-		log.Criticalf("Failed to revive worker: %s", w.name)
+		log.Criticalf("WORKER-REVIVING-FAILED: %s", w.name)
 		return
 	}
-	log.Debugf("Worker revived: %s, establishing connection", w.name)
+	log.Infof("WORKER-REVIVED: %s", w.name)
+	w.EstablishConnection()
 }
 
 func (w *WorkerStatus) EstablishConnection() {
 	log.Debugf("Connecting manager to worker: %s", w.name)
-	for common.DoWithRetry(func() error {
+	const maxRetries = 3
+
+	for i := 1; i <= maxRetries; i++ {
 		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.name, w.port))
 		if err == nil {
-			log.Debugf("Manager connected to worker: %s", w.name)
-			w.UpdateWorkerStatus(true, conn)
-			return nil
+			log.Infof("WORKER-CONNECTED: %s", w.name)
+			w.conn = conn
+			return
 		}
-		return err
-	}, 3) != nil {
-		w.Revive()
+		time.Sleep(1 * time.Second)
 	}
-}
-
-func (w *WorkerStatus) Handle() error {
-	defer w.connection.Close()
-
-	log.Debugf("Watching worker: %s", w.name)
-	w.Watch()
-	log.Debugf("Stop Watching worker: %s", w.name)
-
-	return nil
+	w.Revive()
 }
 
 func (w *WorkerStatus) Watch() {
+	w.EstablishConnection()
+
 	for {
 		select {
 		case msg := <-w.CoordNews:
@@ -87,43 +71,31 @@ func (w *WorkerStatus) Watch() {
 				return
 			}
 		default:
-			log.Debugf("Sending HCK to worker %s", w.name)
 			if w.Send("HCK") != nil {
 				log.Debugf("Error sending HCK to worker %s", w.name)
-				w.SetDeadWorkerNRevive()
+				w.Revive()
 				continue
 			}
 
-			log.Debugf("Receiving message from worker %s", w.name)
 			message, err := w.Receive()
 
 			if err != nil {
 				log.Debugf("Error receiving message from worker %s", w.name)
-				w.SetDeadWorkerNRevive()
+				w.Revive()
 				continue
 			} else {
 				messageAlive := common.ManagementMessage{Content: message}
 
 				if !messageAlive.IsAlive() {
-					log.Debugf("Expecting alive message from worker %s, got %s", w.name, message)
-					w.SetDeadWorkerNRevive()
+					log.Criticalf("Expecting alive message from worker %s, got %s", w.name, message)
+					w.Revive()
 					continue
 				}
-
-				log.Debugf("Worker %s is alive", w.name)
 			}
 
-			log.Debugf("Sleeping for 10 seconds before next check")
-
-			time.Sleep(10 * time.Second)
+			time.Sleep(2 * time.Second)
 		}
 	}
-}
-
-func (w *WorkerStatus) SetDeadWorkerNRevive() {
-	log.Debugf("Worker %s is dead, update status and revive", w.name)
-	w.UpdateWorkerStatus(false, nil)
-	w.Revive()
 }
 
 type WorkerStatusManager struct {
@@ -142,7 +114,6 @@ func (wsm *WorkerStatusManager) AddWorker(workerName string) {
 
 func (wsm *WorkerStatusManager) GetWorkerStatusByName(name string) *WorkerStatus {
 	workerName := fmt.Sprintf("node_%s", strings.ToLower(name))
-	log.Debugf("Searching for worker %s", workerName)
 
 	for i := range wsm.Workers {
 		if wsm.Workers[i].name == workerName {
@@ -154,6 +125,6 @@ func (wsm *WorkerStatusManager) GetWorkerStatusByName(name string) *WorkerStatus
 
 func (wsm *WorkerStatusManager) HandleShutdown() {
 	for _, worker := range wsm.Workers {
-		worker.connection.Close()
+		worker.conn.Close()
 	}
 }
