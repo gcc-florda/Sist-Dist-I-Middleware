@@ -71,13 +71,15 @@ func (rm *ReplicaManager) InitNetwork() {
 			continue
 		}
 
+		rm.neighbours[replicaPosition] = &ReplicaNeighbour{id: i}
+		replicaPosition++
+
 		conn, err := rm.EstablishConnection(i)
 		if err != nil {
 			log.Errorf("[COOR = %d] - Failed to establish connection with replica %d: %s", rm.coordinatorId, i, err)
 			continue
 		}
-		rm.neighbours[replicaPosition] = &ReplicaNeighbour{id: i, conn: conn}
-		replicaPosition++
+		rm.neighbours[replicaPosition-1].conn = conn
 	}
 }
 
@@ -180,8 +182,6 @@ mainloop:
 }
 
 func (rm *ReplicaManager) Revive(id int, reviver chan int) error {
-	time.Sleep(10 * time.Second)
-
 	err := common.ReviveContainer(fmt.Sprintf("manager_%d", id), 5)
 
 	if err != nil {
@@ -343,5 +343,6 @@ func (rm *ReplicaManager) GetPostNeighbour(id int) *ReplicaNeighbour {
 		}
 	}
 
+	log.Fatalf("HOPING FOR UNREACHABLE")
 	return nil
 }

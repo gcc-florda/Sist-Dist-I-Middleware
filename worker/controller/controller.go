@@ -188,7 +188,7 @@ func (c *Controller) HandleManager() {
 		if err != nil {
 			log.Errorf("Error receiving manager messages for controller %s", c.name)
 			c.ManagerConnection.Close()
-			time.Sleep(4 * time.Second)
+			time.Sleep(1 * time.Second)
 			break
 		}
 
@@ -204,7 +204,7 @@ func (c *Controller) HandleManager() {
 		if common.Send("ALV", c.ManagerConnection) != nil {
 			log.Errorf("Error sending ALV to manager for controller %s", c.name)
 			c.ManagerConnection.Close()
-			time.Sleep(4 * time.Second)
+			time.Sleep(1 * time.Second)
 			break
 		}
 
