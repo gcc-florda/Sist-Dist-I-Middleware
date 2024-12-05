@@ -71,12 +71,7 @@ func (rm *ReplicaManager) InitNetwork() {
 			continue
 		}
 
-		conn, err := rm.EstablishConnection(i)
-		if err != nil {
-			log.Errorf("[COOR = %d] - Failed to establish connection with replica %d: %s", rm.coordinatorId, i, err)
-			continue
-		}
-		rm.neighbours[replicaPosition] = &ReplicaNeighbour{id: i, conn: conn}
+		rm.neighbours[replicaPosition] = &ReplicaNeighbour{id: i}
 		replicaPosition++
 	}
 }
@@ -115,6 +110,7 @@ func (rm *ReplicaManager) ReviveAndGetPostNeighbour(id int, reviver chan int) *R
 		rm.StartElection()
 	}
 	neigh := rm.GetPostNeighbour(id)
+	neigh.conn = nil
 
 	return neigh
 }
@@ -128,15 +124,22 @@ func (rm *ReplicaManager) TalkNeighbour() {
 
 mainloop:
 	for {
+
+		if neigh.conn == nil {
+			neigh.conn, err = rm.EstablishConnection(neigh.id)
+			if err != nil {
+				log.Criticalf("[COOR = %d] - Failed to establish connection with replica %d: %s", rm.coordinatorId, neigh.id, err)
+				neigh = rm.ReviveAndGetPostNeighbour(neigh.id, reviver)
+				continue mainloop
+			}
+		}
+
 		select {
 		case id := <-reviver:
 			log.Debugf("[COOR = %d] - Reviver channel got revived replica = %d", rm.coordinatorId, id)
 			neigh = rm.GetNeighbour(id)
-			neigh.conn, err = rm.EstablishConnection(neigh.id)
-			if err != nil {
-				log.Criticalf("[COOR = %d] - Failed to establish connection with replica %d after reviving: %s", rm.coordinatorId, neigh.id, err)
-				continue mainloop
-			}
+			neigh.conn = nil
+			continue mainloop
 		case msg := <-rm.send:
 			log.Infof("[COOR = %d] - Pulling from channel: %s", rm.coordinatorId, msg.Serialize())
 
@@ -180,8 +183,7 @@ mainloop:
 }
 
 func (rm *ReplicaManager) Revive(id int, reviver chan int) error {
-	time.Sleep(10 * time.Second)
-
+	time.Sleep(2 * time.Second)
 	err := common.ReviveContainer(fmt.Sprintf("manager_%d", id), 5)
 
 	if err != nil {
@@ -343,5 +345,6 @@ func (rm *ReplicaManager) GetPostNeighbour(id int) *ReplicaNeighbour {
 		}
 	}
 
+	log.Fatalf("HOPING FOR UNREACHABLE")
 	return nil
 }

@@ -5,6 +5,7 @@ import random
 import docker
 import yaml
 import signal
+import queue
 
 controllers = {
     "map_filter": {
@@ -40,14 +41,18 @@ controllers = {
 }
 
 extras = [
-    f"CONTROLLER_{i}" for i in range(1,4)
+    f"manager_{i}" for i in range(1,4)
 ]
 
 class Node:
+    UNKNOWN = "UNKNOWN"
+    UP = "UP"
+    DOWN = "DOWN"
 
     def __init__(self, name: str):
         self.name = name
         self.last_killed = datetime.min
+        self.state = Node.UNKNOWN
 
     def __repr__(self) -> str:
         return f"Node;name={self.name}"
@@ -63,6 +68,7 @@ class Chaos:
         self._nodes = nodes
         self._stop = threading.Event()
         self._exp: threading.Thread | None = None
+        self._tomonitor = queue.Queue()
 
         signal.signal(signal.SIGTERM, self._handle_sigterm)
 
@@ -72,12 +78,40 @@ class Chaos:
     def __del__(self):
         self._client.close()
 
+    def _monitor(self):
+        monitoring = []
+        while not self._stop.is_set():
+            try:
+                node = self._tomonitor.get_nowait()
+                monitoring.append(node)
+            except Exception:
+                pass 
+
+            for node in monitoring:
+                try:
+                    container = self._client.containers.get(node.name)
+                    status = container.status
+                    if status.lower() == 'running':
+                        print(f"REVIVED: {node.name}")
+                        monitoring.remove(node)
+                    else:
+                        print(f"NODE: {node.name} still dead, status: {status}")
+                except Exception as e:
+                    print(f"Can't get status of {node.name}. Reason: {e}")
+                    monitoring.remove(node)
+            time.sleep(3)
+
+    def monitor(self): 
+        threading.Thread(target=self._monitor).start()
+
     def kill_node(self, node: Node) -> None:
         try:
             c = self._client.containers.get(node.name)
             c.kill()
             node.last_killed = datetime.now()
-            print(f"killed node {node.name}")
+            node.state = Node.DOWN
+            self._tomonitor.put(node)
+            print(f"KILLED: {node.name}")
         except Exception as e:
             print(f"Can't kill {node.name}. Reason: {e}")
 
@@ -106,6 +140,7 @@ class Chaos:
             time.sleep(timeout)
 
     def start_random(self, timeout: int, cooldown: int, seed:int = 0) -> None:
+        self.monitor()
         self._in_thread(self._start_random, (timeout, cooldown, seed))
 
     def _start_stepped(self, step: int) -> None:
@@ -117,7 +152,8 @@ class Chaos:
                 time.sleep(step)
 
     def start_stepped(self, step: int) -> None:
-       self._in_thread(self._start_stepped, (step))
+       self.monitor()
+       self._in_thread(self._start_stepped, (step, ))
 
     def stop(self):
         self._stop.set()
@@ -143,9 +179,9 @@ def build_nodes() -> list[Node]:
     return traverse(controllers, architecture)
 
 w = Chaos(build_nodes())
-# m = Chaos([Node(name) for name in extras])
+m = Chaos([Node(name) for name in extras])
 
-w.start_random(5, 20, 42)
-# m.start_random(60, 240, 42)
+w.start_random(5, 60, 42)
+m.start_stepped(60)
 # while True:
 #     time.sleep(500)

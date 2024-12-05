@@ -113,6 +113,10 @@ func DeserializeClientMessage(message string) (ClientMessage, error) {
 }
 
 func Send(message string, conn net.Conn) error {
+	if conn == nil {
+		return errors.New("Nil conn")
+	}
+
 	messageBytes := []byte(message)
 
 	buffer := new(bytes.Buffer)

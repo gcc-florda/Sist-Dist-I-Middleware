@@ -68,6 +68,7 @@ type Review struct {
 }
 
 type SOCounter struct {
+	AppId   string
 	Windows uint32
 	Linux   uint32
 	Mac     uint32
@@ -75,11 +76,11 @@ type SOCounter struct {
 
 func (s *SOCounter) Serialize() []byte {
 	se := common.NewSerializer()
-	return se.WriteUint32(s.Windows).WriteUint32(s.Linux).WriteUint32(s.Mac).ToBytes()
+	return se.WriteString(s.AppId).WriteUint32(s.Windows).WriteUint32(s.Linux).WriteUint32(s.Mac).ToBytes()
 }
 
 func (s *SOCounter) PartitionKey() string {
-	return common.GenerateRandomString(10)
+	return s.AppId
 }
 
 func (s *SOCounter) ToCSV() []string {
@@ -91,6 +92,10 @@ func (s *SOCounter) ToCSV() []string {
 }
 
 func SOCounterDeserialize(d *common.Deserializer) (*SOCounter, error) {
+	app, err := d.ReadString()
+	if err != nil {
+		return nil, err
+	}
 	windows, err := d.ReadUint32()
 	if err != nil {
 		return nil, err
@@ -106,6 +111,7 @@ func SOCounterDeserialize(d *common.Deserializer) (*SOCounter, error) {
 	}
 
 	return &SOCounter{
+		AppId:   app,
 		Windows: windows,
 		Linux:   linux,
 		Mac:     mac,

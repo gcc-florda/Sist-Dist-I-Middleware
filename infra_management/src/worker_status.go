@@ -13,44 +13,34 @@ import (
 var log = logging.MustGetLogger("log")
 
 type WorkerStatus struct {
-	Name       string
-	Alive      bool
-	Connection net.Conn
-	Listener   string
-	CoordNews  chan bool
+	Name      string
+	conn      net.Conn
+	port      string
+	CoordNews chan bool
 }
 
 func NewWorkerStatus(name string) *WorkerStatus {
 	return &WorkerStatus{
 		Name:      name,
-		Alive:     false,
 		CoordNews: make(chan bool, 2),
 	}
 }
 
 func (w *WorkerStatus) Send(message string) error {
-	return common.Send(message, w.Connection)
+	return common.Send(message, w.conn)
 }
 
 func (w *WorkerStatus) Receive() (string, error) {
-	return common.Receive(w.Connection)
-}
-
-func (w *WorkerStatus) UpdateWorkerStatus(alive bool, conn net.Conn) {
-	w.Alive = alive
-	if conn == nil && w.Connection != nil {
-		w.Connection.Close()
-	}
-	w.Connection = conn
+	return common.Receive(w.conn)
 }
 
 func (w *WorkerStatus) Revive() {
-	log.Debugf("Reviving worker: %s", w.Name)
+	log.Infof("WORKER-REVIVING: %s", w.Name)
 	if common.ReviveContainer(w.Name, 3) != nil {
-		log.Criticalf("Failed to revive worker: %s", w.Name)
+		log.Criticalf("WORKER-REVIVING-FAILED: %s", w.Name)
 		return
 	}
-	log.Debugf("Worker revived: %s, establishing connection", w.Name)
+	log.Infof("WORKER-REVIVED: %s", w.Name)
 	w.EstablishConnection()
 }
 
@@ -58,35 +48,21 @@ func (w *WorkerStatus) EstablishConnection() {
 	log.Debugf("Connecting manager to worker: %s", w.Name)
 	const maxRetries = 3
 
-	for i := 0; i < maxRetries; i++ {
-		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.Name, w.Listener))
+	for i := 1; i <= maxRetries; i++ {
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", w.Name, w.port))
 		if err == nil {
-			log.Debugf("Manager connected to worker: %s", w.Name)
-			w.UpdateWorkerStatus(true, conn)
+			log.Infof("WORKER-CONNECTED: %s", w.Name)
+			w.conn = conn
 			return
 		}
-		if i == maxRetries-1 {
-			// Asumed dead
-			log.Criticalf("Failed to connect to worker %s", w.Name)
-			w.Revive()
-			i = 0
-		}
-		log.Debugf("Manager failed to connect to worker, sleeping: %s", w.Name)
-		time.Sleep(20 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
-}
-
-func (w *WorkerStatus) Handle() error {
-	defer w.Connection.Close()
-
-	log.Debugf("Watching worker: %s", w.Name)
-	w.Watch()
-	log.Debugf("Stop Watching worker: %s", w.Name)
-
-	return nil
+	w.Revive()
 }
 
 func (w *WorkerStatus) Watch() {
+	w.EstablishConnection()
+
 	for {
 		select {
 		case msg := <-w.CoordNews:
@@ -95,43 +71,31 @@ func (w *WorkerStatus) Watch() {
 				return
 			}
 		default:
-			log.Debugf("Sending HCK to worker %s", w.Name)
 			if w.Send("HCK") != nil {
 				log.Debugf("Error sending HCK to worker %s", w.Name)
-				w.SetDeadWorkerNRevive()
+				w.Revive()
 				continue
 			}
 
-			log.Debugf("Receiving message from worker %s", w.Name)
 			message, err := w.Receive()
 
 			if err != nil {
 				log.Debugf("Error receiving message from worker %s", w.Name)
-				w.SetDeadWorkerNRevive()
+				w.Revive()
 				continue
 			} else {
 				messageAlive := common.ManagementMessage{Content: message}
 
 				if !messageAlive.IsAlive() {
-					log.Debugf("Expecting alive message from worker %s, got %s", w.Name, message)
-					w.SetDeadWorkerNRevive()
+					log.Criticalf("Expecting alive message from worker %s, got %s", w.Name, message)
+					w.Revive()
 					continue
 				}
-
-				log.Debugf("Worker %s is alive", w.Name)
 			}
 
-			log.Debugf("Sleeping for 10 seconds before next check")
-
-			time.Sleep(10 * time.Second)
+			time.Sleep(2 * time.Second)
 		}
 	}
-}
-
-func (w *WorkerStatus) SetDeadWorkerNRevive() {
-	log.Debugf("Worker %s is dead, update status and revive", w.Name)
-	w.UpdateWorkerStatus(false, nil)
-	w.Revive()
 }
 
 type WorkerStatusManager struct {
@@ -150,7 +114,6 @@ func (wsm *WorkerStatusManager) AddWorker(workerName string) {
 
 func (wsm *WorkerStatusManager) GetWorkerStatusByName(name string) *WorkerStatus {
 	workerName := fmt.Sprintf("node_%s", strings.ToLower(name))
-	log.Debugf("Searching for worker %s", workerName)
 
 	for i := range wsm.Workers {
 		if wsm.Workers[i].Name == workerName {

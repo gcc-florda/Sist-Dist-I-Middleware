@@ -73,7 +73,7 @@ func DoWithRetry(f func() error, maxRetries int) error {
 				return err
 			}
 
-			time.Sleep(10 * time.Second)
+			time.Sleep(1 * time.Second)
 
 			continue
 		}

@@ -18,6 +18,7 @@ func boolToCounter(b bool) uint32 {
 
 func Q1Map(r *schema.Game) schema.Partitionable {
 	return &schema.SOCounter{
+		AppId:   r.AppID,
 		Windows: boolToCounter(r.Windows),
 		Linux:   boolToCounter(r.Linux),
 		Mac:     boolToCounter(r.Mac),
@@ -65,7 +66,7 @@ func (q *Q1) Count(r *schema.SOCounter, idempotencyID *common.IdempotencyID) err
 }
 
 func (q *Q1) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
-	ch := make(chan *controller.NextStageMessage, 1) //Change this later
+	ch := make(chan *controller.NextStageMessage, 2) //Change this later
 	ce := make(chan error, 1)
 
 	go func() {
