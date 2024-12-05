@@ -3,7 +3,7 @@ import copy
 from pathlib import Path
 import shutil
 
-CLIENTS_NR = 2
+CLIENTS_NR = 3
 MANAGERS_NR = 4
 
 def represent_none(self, _):

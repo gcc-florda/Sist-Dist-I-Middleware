@@ -137,7 +137,7 @@ func (fm *fileManager) Close() {
 }
 
 func (fm *fileManager) Delete() error {
-	return os.Remove(fm.dirname)
+	return os.RemoveAll(fm.dirname)
 }
 
 type IdempotencyHandlerMultipleFiles[T Serializable] struct {

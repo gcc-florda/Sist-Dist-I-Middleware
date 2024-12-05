@@ -219,7 +219,7 @@ func (q *Controller) removeInactiveHandlersTask(s *sync.WaitGroup, rxFinish <-ch
 		ids = append(ids, h.JobId)
 	}
 
-	d := 1 * time.Minute
+	d := 30 * time.Second
 	timer := time.NewTimer(d)
 	for {
 		select {
