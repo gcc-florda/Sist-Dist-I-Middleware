@@ -107,8 +107,6 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 
 	log.Infof("Worker listening on port %s", fmt.Sprintf(":%s", common.Config.GetString("worker.port")))
 
-	// Artificially add one to keep it spinning as long as we don't get a shutdown
-	c.runtimeWG.Add(1)
 	go func() {
 		term := make(chan os.Signal, 1)
 		signal.Notify(term, syscall.SIGTERM)
@@ -122,8 +120,6 @@ func NewController(controllerName string, from []*rabbitmq.Queue, to []*rabbitmq
 		if c.ManagerConnection != nil {
 			c.ManagerConnection.Close()
 		}
-
-		c.runtimeWG.Done()
 	}()
 	return c
 }
@@ -310,6 +306,10 @@ func (c *Controller) listenManagerTask(s *sync.WaitGroup) {
 func (q *Controller) Start() {
 	var end sync.WaitGroup
 	f := make(chan bool, 1)
+
+	// (1) Artificially add one to keep it spinning as long as we don't get a shutdown
+	q.runtimeWG.Add(1)
+
 	end.Add(1)
 	go q.closingTask(&end)
 
@@ -367,6 +367,10 @@ mainloop:
 	// We have sent everything in flight, finalize the handlers
 	f <- true
 	close(f)
+
+	// (2) Remove it once we have finished everything and no more messages are sent to handlers
+	q.runtimeWG.Done()
+
 	end.Wait()
 	log.Debugf("Finalized main loop for controller")
 }
