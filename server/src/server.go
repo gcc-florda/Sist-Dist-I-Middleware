@@ -127,6 +127,8 @@ func (s *Server) HandleConnection(client *Client) {
 			log.Infof("Action: Received Close Connection for Client | Result: Closing_Connection")
 			s.RemoveClient(client)
 			return
+		case common.Type_HCK:
+			s.SendAlive(client)
 
 		default:
 			log.Error("Received an UNKNOWN Type message --> no broadcast")
@@ -212,6 +214,10 @@ func (s *Server) SendResults(client *Client, message common.ClientMessage) {
 	log.Debugf("Finished sending results to client: %s", client.Id)
 
 	client.SendEndWithResults()
+}
+
+func (s *Server) SendAlive(client *Client) {
+	client.SendAlive()
 }
 
 func (s *Server) GetDataStore(j common.JobID) (*ResultStore, error) {

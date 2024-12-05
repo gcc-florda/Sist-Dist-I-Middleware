@@ -46,6 +46,12 @@ func (c *Client) SendId() error {
 	return nil
 }
 
+func (c *Client) SendAlive() error {
+	return common.DoWithRetry(func() error {
+		return c.Send("ALV")
+	}, 3, 2)
+}
+
 func (c *Client) SendResultsQ1(q *QueryResultStore[*schema.SOCounter], wg *sync.WaitGroup) error {
 	log.Infof("Waiting for Q1 results to be ready")
 	defer wg.Done()
