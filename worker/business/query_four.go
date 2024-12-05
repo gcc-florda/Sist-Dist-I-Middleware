@@ -105,22 +105,23 @@ func (q *Q4) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 			ce <- err
 			return
 		}
+		defer fs.Shutdown(true)
+
 		var line uint32 = 1
 		for rc := range s {
-			if line < fs.LastConfirmedSent() {
-				continue
-			}
-			cr <- &controller.NextStageMessage{
-				Message:      rc,
-				Sequence:     line,
-				SentCallback: fs.Sent,
+			if line > fs.LastConfirmedSent() {
+				cr <- &controller.NextStageMessage{
+					Message:      rc,
+					Sequence:     line,
+					SentCallback: fs.Sent,
+				}
 			}
 			line++
 		}
 
 		cr <- &controller.NextStageMessage{
 			Message:      nil,
-			Sequence:     line + 1,
+			Sequence:     line,
 			SentCallback: nil,
 		}
 	}()

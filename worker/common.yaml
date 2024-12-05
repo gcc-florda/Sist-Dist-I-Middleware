@@ -13,7 +13,7 @@ query:
   four:
     category: action
     positive: false
-    over: 100
+    over: 5000
   five:
     category: action
     positive: false

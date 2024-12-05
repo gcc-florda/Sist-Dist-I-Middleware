@@ -348,3 +348,9 @@ func (rm *ReplicaManager) GetPostNeighbour(id int) *ReplicaNeighbour {
 	log.Fatalf("HOPING FOR UNREACHABLE")
 	return nil
 }
+
+func (rm *ReplicaManager) HandleShutdown() {
+	for _, neigh := range rm.neighbours {
+		neigh.conn.Close()
+	}
+}

@@ -95,41 +95,41 @@ func (q *Join) NextStage() (<-chan *controller.NextStageMessage, <-chan error) {
 			ce <- err
 			return
 		}
+		defer fs.Shutdown(true)
 
 		var line uint32 = 1
 		for game := range games {
-			if line < fs.LastConfirmedSent() {
-				continue
-			}
-			reviews, err := q.reviewStorage.ReadSerialState(
-				game.AppID,
-				CountStateDeserialize,
-				func(cs1, cs2 *CountState) *CountState {
-					if cs2.appID == game.AppID {
-						return CountStateAggregate(cs1, cs2)
-					}
-					return cs1
-				},
-				&CountState{appID: game.AppID, count: 0},
-			)
-			if err != nil {
-				ce <- err
-				return
-			}
-			cr <- &controller.NextStageMessage{
-				Message: &schema.NamedReviewCounter{
-					Name:  game.Name,
-					Count: reviews.count,
-				},
-				Sequence:     line,
-				SentCallback: fs.Sent,
+			if line > fs.LastConfirmedSent() {
+				reviews, err := q.reviewStorage.ReadSerialState(
+					game.AppID,
+					CountStateDeserialize,
+					func(cs1, cs2 *CountState) *CountState {
+						if cs2.appID == game.AppID {
+							return CountStateAggregate(cs1, cs2)
+						}
+						return cs1
+					},
+					&CountState{appID: game.AppID, count: 0},
+				)
+				if err != nil {
+					ce <- err
+					return
+				}
+				cr <- &controller.NextStageMessage{
+					Message: &schema.NamedReviewCounter{
+						Name:  game.Name,
+						Count: reviews.count,
+					},
+					Sequence:     line,
+					SentCallback: fs.Sent,
+				}
 			}
 			line++
 		}
 
 		cr <- &controller.NextStageMessage{
 			Message:      nil,
-			Sequence:     line + 1,
+			Sequence:     line,
 			SentCallback: nil,
 		}
 	}()
