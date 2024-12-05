@@ -182,8 +182,8 @@ func (h *HandlerRuntime) Finish() {
 	// Ensure that the runtime has sent everything to the controller
 	log.Debugf("Action: Received Finishing Signal to Finish %s-%s", h.ControllerName, h.JobId)
 	<-h.finish
-	log.Debugf("Action: Shutting Down %s-%s | Remove: %t", h.ControllerName, h.JobId, h.removeOnCleanup)
-	h.handler.Shutdown(h.removeOnCleanup)
+	log.Debugf("Action: Shutting Down %s-%s | Remove: %t", h.ControllerName, h.JobId, true)
+	h.handler.Shutdown(true)
 	log.Debugf("Action: Shutdown %s-%s", h.ControllerName, h.JobId)
 }
 
