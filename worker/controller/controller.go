@@ -165,20 +165,6 @@ func (q *Controller) broadcast(m common.Serializable) {
 	}
 }
 
-func (c *Controller) WaitForManager() {
-
-	for {
-		var err error
-		c.ManagerConnection, err = c.Listener.Accept()
-		if err != nil {
-			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
-			break
-		}
-
-		c.HandleManager()
-	}
-}
-
 func (c *Controller) HandleManager() {
 	defer c.ManagerConnection.Close()
 
@@ -307,6 +293,20 @@ func (q *Controller) sendForwardTask(s *sync.WaitGroup) {
 	log.Debugf("Sent all pending messages")
 }
 
+func (c *Controller) listenManagerTask(s *sync.WaitGroup) {
+	defer s.Done()
+	for {
+		var err error
+		c.ManagerConnection, err = c.Listener.Accept()
+		if err != nil {
+			log.Errorf("Action: Accept connection | Result: Error | Error: %s", err)
+			break
+		}
+
+		c.HandleManager()
+	}
+}
+
 func (q *Controller) Start() {
 	var end sync.WaitGroup
 	f := make(chan bool, 1)
@@ -314,7 +314,7 @@ func (q *Controller) Start() {
 	go q.closingTask(&end)
 
 	end.Add(1)
-	go q.WaitForManager()
+	go q.listenManagerTask(&end)
 
 	end.Add(1)
 	go q.sendForwardTask(&end)
@@ -366,7 +366,7 @@ mainloop:
 	log.Debugf("Ending main loop")
 	// We have sent everything in flight, finalize the handlers
 	f <- true
-
+	close(f)
 	end.Wait()
 	log.Debugf("Finalized main loop for controller")
 }
