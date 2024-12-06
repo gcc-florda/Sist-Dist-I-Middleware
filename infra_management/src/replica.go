@@ -183,7 +183,7 @@ mainloop:
 }
 
 func (rm *ReplicaManager) Revive(id int, reviver chan int) error {
-	time.Sleep(2 * time.Second)
+	time.Sleep(4 * time.Second)
 	err := common.ReviveContainer(fmt.Sprintf("manager_%d", id), 5)
 
 	if err != nil {

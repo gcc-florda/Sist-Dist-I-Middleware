@@ -21,6 +21,8 @@ const (
 	CloseConnection = "CLC"
 	EndWithResults  = "EWR"
 	EOF             = "EOF"
+	HCK             = "HCK"
+	ALV             = "ALV"
 )
 
 const (
@@ -35,6 +37,8 @@ const (
 	Type_CloseConnection
 	Type_EndWithResults
 	Type_EOF
+	Type_HCK
+	Type_ALV
 )
 
 type ClientMessage struct {
@@ -76,6 +80,10 @@ func (cm ClientMessage) SerializeClientMessage() (string, error) {
 		return CloseConnection + "|" + cm.Content + "\n", nil
 	case Type_EndWithResults:
 		return EndWithResults + "|" + cm.Content + "\n", nil
+	case Type_HCK:
+		return HCK + "|" + cm.Content + "\n", nil
+	case Type_ALV:
+		return ALV + "|" + cm.Content + "\n", nil
 	}
 
 	return "", errors.New("invalid message type")
@@ -85,7 +93,13 @@ func DeserializeClientMessage(message string) (ClientMessage, error) {
 	msg_splitted := strings.SplitN(message, "|", 2)
 
 	msg_type := msg_splitted[0]
-	msg_content := msg_splitted[1]
+	var msg_content string
+
+	if len(msg_splitted) > 1 {
+		msg_content = msg_splitted[1]
+	} else {
+		msg_content = ""
+	}
 
 	switch msg_type {
 	case GAMES:
@@ -108,6 +122,8 @@ func DeserializeClientMessage(message string) (ClientMessage, error) {
 		return ClientMessage{msg_content, Type_CloseConnection}, nil
 	case EndWithResults:
 		return ClientMessage{msg_content, Type_EndWithResults}, nil
+	case HCK:
+		return ClientMessage{msg_content, Type_HCK}, nil
 	}
 	return ClientMessage{}, errors.New("invalid message type")
 }

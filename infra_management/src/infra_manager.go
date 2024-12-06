@@ -85,6 +85,8 @@ func (m *InfraManager) StopHandleWorkers() {
 func (m *InfraManager) LoadArchitecture() error {
 	arcCfg := common.LoadArchitectureConfig("./architecture.yaml")
 
+	m.WorkersManager.AddWorker("server")
+
 	// MAP FILTER
 
 	for i := range arcCfg.MapFilter.QueryOneGames.PartitionAmount {

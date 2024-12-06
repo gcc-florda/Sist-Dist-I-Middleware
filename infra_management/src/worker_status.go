@@ -53,9 +53,16 @@ func (w *WorkerStatus) EstablishConnection() {
 		if err == nil {
 			log.Infof("WORKER-CONNECTED: %s", w.name)
 			w.conn = conn
+
+			if w.name == "server" {
+				// Ignore first server client id message
+				w.Receive()
+			}
+
 			return
 		}
-		time.Sleep(3 * time.Second)
+
+		time.Sleep(1 * time.Second)
 	}
 	w.Revive()
 }
